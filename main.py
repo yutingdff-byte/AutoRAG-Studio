@@ -1,6 +1,9 @@
 import json
 import os
 
+from datetime import datetime
+from time import sleep
+
 
 from agents.fact_agent import extract_facts
 from agents.rag_agent import generate_rag
@@ -14,16 +17,61 @@ from generator.excel_generator import generate_excel
 # JSON保存工具
 # =========================
 
-def save_json(filename, data):
+def create_run_context():
 
-    os.makedirs(
-        "output",
-        exist_ok=True
-    )
+    """
+    创建本次运行上下文。
+
+    run_id格式：
+    YYYYMMDD_HHMMSS
+    """
+
+
+    while True:
+
+        run_id = datetime.now().strftime(
+            "%Y%m%d_%H%M%S"
+        )
+
+        output_dir = os.path.join(
+            "output",
+            run_id
+        )
+
+        if not os.path.exists(
+            output_dir
+        ):
+
+            os.makedirs(
+                output_dir,
+                exist_ok=False
+            )
+
+            return {
+
+                "run_id": run_id,
+
+                "output_dir": output_dir,
+
+                "start_time": datetime.now().isoformat(
+                    timespec="seconds"
+                )
+
+            }
+
+
+        sleep(1)
+
+
+
+def save_json(output_dir, filename, data):
 
 
     with open(
-        f"output/{filename}",
+        os.path.join(
+            output_dir,
+            filename
+        ),
         "w",
         encoding="utf-8"
     ) as f:
@@ -43,7 +91,8 @@ def save_json(filename, data):
 
 def run_pipeline(
     material,
-    progress_callback=None
+    progress_callback=None,
+    source_files=None
 ):
 
     """
@@ -70,6 +119,8 @@ def run_pipeline(
     返回：
 
     {
+        run_id,
+        output_dir,
         facts,
         rag,
         qc,
@@ -77,6 +128,32 @@ def run_pipeline(
     }
 
     """
+
+
+    source_files = source_files or []
+
+
+    run_context = create_run_context()
+
+
+    run_id = run_context[
+        "run_id"
+    ]
+
+
+    output_dir = run_context[
+        "output_dir"
+    ]
+
+
+    print(
+        "===== Run ID ====="
+    )
+
+
+    print(
+        run_id
+    )
 
 
 
@@ -95,6 +172,7 @@ def run_pipeline(
 
 
     save_json(
+        output_dir,
         "facts.json",
         facts
     )
@@ -127,6 +205,7 @@ def run_pipeline(
 
 
     save_json(
+        output_dir,
         "rag.json",
         rag
     )
@@ -160,6 +239,7 @@ def run_pipeline(
 
 
     save_json(
+        output_dir,
         "qc_report.json",
         qc
     )
@@ -187,8 +267,8 @@ def run_pipeline(
     )
 
 
-    excel_path = (
-        "output/"
+    excel_path = os.path.join(
+        output_dir,
         "汽车外呼RAG知识库.xlsx"
     )
 
@@ -198,6 +278,57 @@ def run_pipeline(
         rag,
         qc,
         excel_path
+    )
+
+
+    run_info = {
+
+        "run_id": run_id,
+
+        "start_time": run_context[
+            "start_time"
+        ],
+
+        "end_time": datetime.now().isoformat(
+            timespec="seconds"
+        ),
+
+        "source_files": source_files,
+
+        "file_count": len(
+            source_files
+        ),
+
+        "output_dir": output_dir,
+
+        "output_files": {
+
+            "facts": os.path.join(
+                output_dir,
+                "facts.json"
+            ),
+
+            "rag": os.path.join(
+                output_dir,
+                "rag.json"
+            ),
+
+            "qc_report": os.path.join(
+                output_dir,
+                "qc_report.json"
+            ),
+
+            "excel": excel_path
+
+        }
+
+    }
+
+
+    save_json(
+        output_dir,
+        "run_info.json",
+        run_info
     )
 
 
@@ -211,6 +342,12 @@ def run_pipeline(
     return {
 
 
+        "run_id": run_id,
+
+
+        "output_dir": output_dir,
+
+
         "facts": facts,
 
 
@@ -220,7 +357,10 @@ def run_pipeline(
         "qc": qc,
 
 
-        "excel_path": excel_path
+        "excel_path": excel_path,
+
+
+        "run_info": run_info
 
 
     }

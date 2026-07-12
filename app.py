@@ -265,7 +265,15 @@ if uploaded_files:
 
                 material,
 
-                progress_callback=update_progress
+                progress_callback=update_progress,
+
+                source_files=[
+
+                    file.name
+
+                    for file in uploaded_files
+
+                ]
 
             )
 
@@ -274,6 +282,13 @@ if uploaded_files:
         st.success(
 
             "🎉 RAG生成完成"
+
+        )
+
+
+        st.caption(
+
+            f"本次任务编号：{result['run_id']}"
 
         )
 
@@ -361,15 +376,21 @@ if uploaded_files:
 
                 qc.get(
 
-                    "summary",
-
-                    {}
-
-                ).get(
-
                     "overall_result",
 
-                    "未知"
+                    qc.get(
+
+                        "summary",
+
+                        {}
+
+                    ).get(
+
+                        "overall_result",
+
+                        "未知"
+
+                    )
 
                 )
 

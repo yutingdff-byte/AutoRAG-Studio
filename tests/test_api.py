@@ -8,4 +8,4 @@ result = call_llm(
 
 
 print("模型返回内容：")
-print(result)python -m pip show openai
+print(result)
