@@ -1,224 +1,110 @@
 # AutoRAG-Studio Roadmap
 
-Version: V0.2
+Current Stable Version: V0.6.6
 
-Date: 2026-07-12
+Date: 2026-07-14
 
+## Product Direction
 
-# 产品目标
+AutoRAG-Studio is evolving from an Excel generation tool into an AI knowledge generation, review, and update platform.
 
-从：
+Core scenario:
 
-RAG生成工具
+```text
+AI outbound call
+-> lead qualification
+-> store visit invitation
+-> human sales handoff
+```
 
+## V0.6 Stable - Completed
 
-升级：
+Status: Completed and frozen
 
-企业Agent知识库生成与运营平台。
+Stable tag: `v0.6.6`
 
+Completed capabilities:
 
+- Static and dynamic knowledge split
+- Brand/model/trim vehicle hierarchy
+- Model-level knowledge aggregation
+- Version-difference knowledge generation
+- Static and dynamic dual Excel export
+- Streamlit review console
+- Knowledge review center
+- Dynamic knowledge reminders
+- QC report display
+- Price overview knowledge generation
+- QC false-positive reduction for fixed services and vehicle capabilities
 
----
+V0.6 output:
 
-# V0.5.7 工程稳定化
+- 车型配置知识库
+- 价格政策知识库
+- Review console for gaps, conflicts, AI inference, dynamic reminders, and QC suggestions
 
-状态：
+## V0.7 - Knowledge Update Mode
 
-开发中
+Status: Next
 
+Goal:
 
-目标：
+Support partial updates for dynamic policy knowledge without regenerating the full knowledge base.
 
-支持多人测试和结果追踪。
+Planned workflow:
 
+```text
+Upload old knowledge base
++ Upload new policy material
+-> Detect changes
+-> Generate update suggestions
+-> Export updated price policy knowledge base
+```
 
-## TASK-001
+Planned capabilities:
 
-Run ID机制
+- Identify added policies
+- Identify changed policies
+- Identify expired policies
+- Preserve unchanged static knowledge
+- Generate update diff report
+- Export updated dynamic knowledge
 
+## V0.8 - Multimodal Material Parsing
 
-要求：
+Status: Planned
 
-每次运行生成：
+Planned capabilities:
 
-YYYYMMDD_HHMMSS
+- Image material parsing
+- Campaign poster parsing
+- Rights and benefits image extraction
+- PPT parsing after image support is stable
 
+## V0.9 - QC-Assisted Fixing
 
-例如：
+Status: Planned
 
-20260712_103501
+Goal:
 
+Allow users to review QC suggestions and choose whether to accept or ignore AI-assisted fixes.
 
+Planned capabilities:
 
----
+- Suggested rewrite for overlong answers
+- Suggested split for mixed-intent FAQ
+- Suggested category correction
+- User accept/ignore workflow
+- Review history
 
-## TASK-002
+## V1.0 - Knowledge Operations Platform
 
-独立输出目录
+Status: Long-term
 
+Planned capabilities:
 
-目标：
-
-output/{run_id}/
-
-
-保存：
-
-- facts.json
-- rag.json
-- qc_report.json
-- excel
-
-
----
-
-## TASK-003
-
-run_info.json
-
-
-记录：
-
-- run_id
-- 时间
-- 上传文件
-- 文件数量
-- 输出路径
-
-
----
-
-## TASK-004
-
-Streamlit结果隔离
-
-
-要求：
-
-下载当前运行结果。
-
-不能读取固定output文件。
-
-
----
-
-# V0.6 网页检查台
-
-
-状态：
-
-规划中
-
-
-目标：
-
-将：
-
-Sheet2
-
-Sheet3
-
-Sheet4
-
-
-迁移到网页。
-
-
-展示：
-
-- 信息缺口
-- 人工确认
-- QC问题
-
-
----
-
-新增：
-
-导出模式。
-
-
-上传模式：
-
-只输出系统需要字段。
-
-
-完整模式：
-
-输出完整信息。
-
-
----
-
-# V0.7 知识生命周期
-
-
-状态：
-
-规划中
-
-
-新增：
-
-knowledge_type
-
-
-支持：
-
-产品固定知识
-
-营销政策知识
-
-
----
-
-# V0.8 知识库更新模式
-
-
-第一阶段：
-
-用户指定更新范围。
-
-
-例如：
-
-更新金融政策。
-
-
-第二阶段：
-
-AI自动检测变化。
-
-
----
-
-# V0.9 多模态支持
-
-
-支持：
-
-图片
-
-活动截图
-
-权益海报
-
-
-后续：
-
-PPT。
-
-
----
-
-# V1.0
-
-知识库运营平台。
-
-
-包含：
-
-- 历史版本
-- 更新记录
-- 项目管理
-- 知识库生命周期
+- Project management
+- Knowledge base version management
+- Update history
+- Multi-user collaboration
+- Knowledge lifecycle operations

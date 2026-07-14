@@ -1,285 +1,102 @@
 # AutoRAG-Studio Changelog
 
----
+## V0.6.6 - V0.6 Stable
 
-## V0.5.6
+Date: 2026-07-14
 
-发布日期：
+Status: Completed
 
-2026-07
+### Fixed
 
-状态：
+- Reduced QC false positives for static/dynamic classification.
+- QC no longer treats fixed vehicle services or capabilities as dynamic only because answers contain words such as free, gifted, or lifetime.
+- Warranty, three-electric warranty, roadside assistance, car networking traffic, entertainment traffic, ADS packages, intelligent driving functions, cockpit capabilities, and basic after-sales protection remain static when they are fixed services or vehicle capabilities.
+- Static/dynamic QC now only reports a mismatch when static knowledge contains clear dynamic policy signals such as limited-time activity, order condition, subsidy, finance rate, discount, deduction, option waiver, validity period, or explicit activity dates.
 
-已完成
+### Verified
 
----
+- Avita regression data no longer reports the specified static RAG items as static/dynamic classification errors.
+- Synthetic dynamic-policy cases still trigger the static/dynamic mismatch check when they are incorrectly marked as static.
+- `agents/qc_agent.py` passes syntax check.
 
-### 新增
+### Stable Scope
 
-Streamlit Web Demo
+V0.6 is now frozen as the stable baseline.
 
-Parser Factory
+Completed scope:
 
-TXT Parser
+- Static/dynamic knowledge split
+- Brand/model/trim vehicle hierarchy
+- Model-level aggregation
+- Version-difference generation
+- Dual Excel export
+- Streamlit review console
+- Knowledge review center
+- QC report display and rule-based checks
+- Price overview knowledge generation
 
-DOCX Parser
+## V0.6.5
 
-XLSX Parser
+### Added
 
-PDF Parser
+- Knowledge Review Center with information missing, conflict, AI inference, and dynamic notice sections.
+- Overview metrics for knowledge review and QC issues.
+- Model-level price overview generation.
+- QC check for missing model-level price overview.
 
-Image Parser（预留）
+## V0.6.4
 
----
+### Added
 
-### 新增Agent
+- Streamlit review console.
+- Static knowledge page.
+- Dynamic knowledge page.
+- Information gap, confirmation, QC, and download pages.
+- Productized Excel names:
+  - 车型配置知识库
+  - 价格政策知识库
 
-Step1 Fact Agent
+## V0.6.3
 
-Step2 RAG Agent
+### Added
 
-Step3 QC Agent
+- Model-level knowledge priority.
+- Version differences generated only when necessary.
+- Duplicate and over-split knowledge checks.
 
----
+## V0.6.2
 
-### 新增功能
+### Added
 
-多文件上传
+- Brand/model/trim vehicle hierarchy.
+- Excel columns changed to 车型, 版本, 问题, 回答, 分类.
+- RAG answer quality optimization for AI outbound-call scenarios.
 
-JSON结果展示
+## V0.6.1
 
-Excel自动生成
+### Added
 
-4 Sheet导出
-
----
-
-### 修复
-
-BUG-001
-
-Step2返回None导致崩溃
-
-修复：
-
-增加异常兜底。
-
----
-
-BUG-002
-
-大资料JSON截断
-
-修复：
-
-增加max_tokens。
-
-增加finish_reason日志。
-
----
-
-BUG-003
-
-RAG数量严重不足
-
-问题：
-
-41 Facts
-
-↓
-
-10 RAG
-
-修复：
-
-增加覆盖率规则。
-
-按vehicle/category分批生成。
-
-结果：
-
-76 Facts
-
-↓
-
-66 RAG
-
----
-
-BUG-004
-
-品牌/车型/年款为空
-
-修复：
-
-新增：
-
-brand
-
-vehicle
-
-year
-
-字段。
-
----
-
-BUG-005
-
-Excel兼容问题
-
-问题：
-
-str has no attribute get
-
-修复：
-
-增加dict兼容判断。
-
----
-
-BUG-006
-
-PDF依赖缺失
-
-修复：
-
-安装pypdf。
-
----
-
-BUG-007
-
-excel_parser误覆盖
-
-修复：
-
-恢复parse_excel。
-
----
-
-### 内容质量优化
-
-新增：
-
-年款规则
-
-金融规则
-
-销售转译边界
-
-权益规则
-
----
-
-### 测试结果
-
-Parser
-
-TXT
-
-DOCX
-
-XLSX
-
-PDF
-
-全部通过。
-
----
-
-Step1
-
-76 Facts
-
----
-
-Step2
-
-66 RAG
-
-覆盖率约92%
-
----
-
-Step3
-
-可运行
-
-规则待优化
-
----
-
-### 版本评价
-
-Parser
-
-9/10
-
-Fact Agent
-
-8.5/10
-
-RAG Agent
-
-8.5/10
-
-Excel
-
-9/10
-
-Streamlit
-
-8/10
-
-QC
-
-6/10
-
----
-
-整体：
-
-8.3 / 10
-
----
+- Static/dynamic knowledge classification.
+- Dual Excel output.
+- Simplified import-oriented Excel fields.
 
 ## V0.5.7
 
-状态：
+### Added
 
-开发中
+- Run ID mechanism.
+- Isolated output directory.
+- Run metadata.
+- Streamlit result isolation.
 
----
+## V0.5.6
 
-目标
+### Added
 
-工程稳定化
-
----
-
-计划内容
-
-Run ID机制
-
-独立输出目录
-
-运行日志
-
-多用户隔离
-
-Git规范化
-
----
-
-预计完成后
-
-支持：
-
-多人同时测试
-
-结果追溯
-
-版本回滚
-
-持续迭代开发
+- Streamlit web demo.
+- Parser factory.
+- TXT, DOCX, XLSX, PDF parsing.
+- Step1 Fact Agent.
+- Step2 RAG Agent.
+- Step3 QC Agent.
+- Excel generation.

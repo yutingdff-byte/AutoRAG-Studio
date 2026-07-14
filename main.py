@@ -124,7 +124,7 @@ def run_pipeline(
         facts,
         rag,
         qc,
-        excel_path
+        excel_paths
     }
 
     """
@@ -273,7 +273,7 @@ def run_pipeline(
     )
 
 
-    generate_excel(
+    excel_paths = generate_excel(
         facts,
         rag,
         qc,
@@ -318,7 +318,7 @@ def run_pipeline(
                 "qc_report.json"
             ),
 
-            "excel": excel_path
+            "excel": excel_paths
 
         }
 
@@ -357,7 +357,13 @@ def run_pipeline(
         "qc": qc,
 
 
-        "excel_path": excel_path,
+        "excel_path": excel_paths.get(
+            "static",
+            ""
+        ),
+
+
+        "excel_paths": excel_paths,
 
 
         "run_info": run_info
