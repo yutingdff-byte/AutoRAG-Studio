@@ -4,7 +4,9 @@ import pandas as pd
 import streamlit as st
 
 from main import run_pipeline
+from parser.image_parser import IMAGE_EXTENSIONS, get_vision_model_name
 from parser.parser_factory import parse_file
+from utils.rag_quality import is_exportable_rag, normalize_review_item
 
 
 st.set_page_config(
@@ -49,6 +51,12 @@ def build_knowledge_rows(rag_data, knowledge_type):
         if item.get(
             "knowledge_type"
         ) != knowledge_type:
+
+            continue
+
+        if not is_exportable_rag(
+            item
+        ):
 
             continue
 
@@ -183,6 +191,104 @@ def collect_coverage_text(facts_data, rag_data):
     )
 
 
+def normalize_review_model(value):
+
+    return str(
+        value or ""
+    ).replace(
+        "新",
+        ""
+    ).replace(
+        " ",
+        ""
+    )
+
+
+def build_coverage_index(facts_data, rag_data):
+
+    coverage = set()
+
+    for fact in facts_data.get(
+        "facts",
+        []
+    ):
+
+        if not isinstance(
+            fact,
+            dict
+        ):
+
+            continue
+
+        coverage.add(
+            (
+                normalize_review_model(
+                    fact.get(
+                        "model",
+                        ""
+                    )
+                ),
+                fact.get(
+                    "category",
+                    ""
+                )
+            )
+        )
+
+    for item in rag_data.get(
+        "rag_knowledge",
+        []
+    ):
+
+        if not isinstance(
+            item,
+            dict
+        ):
+
+            continue
+
+        model = normalize_review_model(
+            item.get(
+                "model",
+                ""
+            )
+        )
+
+        coverage.add(
+            (
+                model,
+                item.get(
+                    "category",
+                    ""
+                )
+            )
+        )
+
+        coverage.add(
+            (
+                model,
+                item.get(
+                    "module",
+                    ""
+                )
+            )
+        )
+
+    return coverage
+
+
+REVIEW_TOPIC_CATEGORIES = {
+    "金融": ["金融政策", "金融方案"],
+    "权益": ["权益政策", "购车权益", "活动政策"],
+    "空间": ["空间信息", "尺寸信息", "空间"],
+    "动力": ["动力信息", "动力"],
+    "价格": ["价格信息", "价格"],
+    "智驾": ["智驾信息", "智能驾驶", "智驾"],
+    "续航": ["续航信息", "续航"],
+    "补能": ["补能信息", "补能"]
+}
+
+
 def get_review_text(item):
 
     if isinstance(item, dict):
@@ -204,7 +310,29 @@ def get_review_text(item):
     return str(item)
 
 
-def is_gap_resolved(item, coverage_text):
+def get_review_model(item):
+
+    if isinstance(
+        item,
+        dict
+    ):
+
+        return normalize_review_model(
+            item.get(
+                "model",
+                ""
+            )
+            or
+            item.get(
+                "vehicle",
+                ""
+            )
+        )
+
+    return ""
+
+
+def is_gap_resolved(item, coverage_text, coverage_index):
 
     text = get_review_text(item)
 
@@ -215,6 +343,50 @@ def is_gap_resolved(item, coverage_text):
     for keywords in REVIEW_TOPIC_KEYWORDS.values():
 
         if any(keyword in text for keyword in keywords):
+
+            matched_topic = None
+
+            for topic, topic_keywords in REVIEW_TOPIC_KEYWORDS.items():
+
+                if any(
+                    keyword in text
+                    for keyword in topic_keywords
+                ):
+
+                    matched_topic = topic
+
+                    break
+
+            model = get_review_model(
+                item
+            )
+
+            if matched_topic:
+
+                categories = REVIEW_TOPIC_CATEGORIES.get(
+                    matched_topic,
+                    []
+                )
+
+                if model:
+
+                    if any(
+                        (
+                            model,
+                            category
+                        )
+                        in coverage_index
+                        for category in categories
+                    ):
+
+                        return True
+
+                elif any(
+                    category in coverage_text
+                    for category in categories
+                ):
+
+                    return True
 
             return any(keyword in coverage_text for keyword in keywords)
 
@@ -258,83 +430,144 @@ def build_review_center_rows(facts_data, rag_data):
 
     coverage_text = collect_coverage_text(facts_data, rag_data)
 
+    coverage_index = build_coverage_index(
+        facts_data,
+        rag_data
+    )
+
     gaps = []
     gaps.extend(facts_data.get("info_gaps", []))
     gaps.extend(rag_data.get("info_gaps", []))
+    gaps.extend(rag_data.get("review_items", []))
 
     for item in gaps:
 
-        if is_gap_resolved(item, coverage_text):
+        normalized_item = normalize_review_item(
+            item
+        )
+
+        if is_gap_resolved(
+            normalized_item,
+            coverage_text,
+            coverage_index
+        ):
 
             continue
 
-        review_type = classify_review_item(item)
+        review_type = classify_review_item(
+            normalized_item
+        )
 
-        if isinstance(item, dict):
-
-            rows.append(
-                {
-                    "检查类型": review_type,
-                    "车型": item.get("model", "") or item.get("vehicle", ""),
-                    "事项": item.get("missing_content", "") or item.get("item", ""),
-                    "说明": item.get("description", "") or item.get("reason", ""),
-                    "处理动作": "补充资料"
-                }
-            )
-
-        else:
-
-            rows.append(
-                {
-                    "检查类型": "missing",
-                    "车型": "",
-                    "事项": str(item),
-                    "说明": "",
-                    "处理动作": "补充资料"
-                }
-            )
+        rows.append(
+            {
+                "检查类型": review_type,
+                "车型": normalized_item.get(
+                    "model",
+                    "全部车型"
+                ) or "全部车型",
+                "事项": normalized_item.get(
+                    "item",
+                    "待人工关注事项"
+                ) or "待人工关注事项",
+                "说明": normalized_item.get(
+                    "reason",
+                    "资料中未找到可直接确认的信息"
+                ) or "资料中未找到可直接确认的信息",
+                "处理动作": normalized_item.get(
+                    "suggestion",
+                    "补充资料"
+                ) or "补充资料"
+            }
+        )
 
     for item in rag_data.get("confirm_items", []):
 
-        review_type = classify_review_item(item)
+        normalized_item = normalize_review_item(
+            item,
+            default_review_type="inference"
+        )
 
-        if isinstance(item, dict):
+        review_type = classify_review_item(
+            normalized_item
+        )
 
-            rows.append(
-                {
-                    "检查类型": review_type,
-                    "车型": item.get("model", ""),
-                    "事项": item.get("item", "") or item.get("question", ""),
-                    "说明": item.get("reason", ""),
-                    "处理动作": (
+        rows.append(
+            {
+                "检查类型": review_type,
+                "车型": normalized_item.get(
+                    "model",
+                    "全部车型"
+                ) or "全部车型",
+                "事项": normalized_item.get(
+                    "item",
+                    "待人工关注事项"
+                ) or "待人工关注事项",
+                "说明": normalized_item.get(
+                    "reason",
+                    "资料中未找到可直接确认的信息"
+                ) or "资料中未找到可直接确认的信息",
+                "处理动作": normalized_item.get(
+                    "suggestion",
+                    (
                         "人工确认"
                         if review_type == "conflict"
                         else
                         "人工核查"
                     )
-                }
-            )
+                ) or (
+                    "人工确认"
+                    if review_type == "conflict"
+                    else
+                    "人工核查"
+                )
+            }
+        )
 
-        else:
+    for item in rag_data.get(
+        "export_excluded",
+        []
+    ):
 
-            rows.append(
-                {
-                    "检查类型": review_type,
-                    "车型": "",
-                    "事项": str(item),
-                    "说明": "",
-                    "处理动作": (
-                        "人工确认"
-                        if review_type == "conflict"
-                        else
-                        "人工核查"
-                    )
-                }
-            )
+        if not isinstance(
+            item,
+            dict
+        ):
+
+            continue
+
+        rows.append(
+            {
+                "检查类型": item.get(
+                    "review_type",
+                    "missing"
+                ) or "missing",
+                "车型": item.get(
+                    "model",
+                    "全部车型"
+                ) or "全部车型",
+                "事项": join_questions(
+                    item
+                ) or item.get(
+                    "category",
+                    "待确认知识"
+                ),
+                "说明": item.get(
+                    "export_block_reason",
+                    "该知识不适合进入正式导出文件"
+                ),
+                "处理动作": "补充资料或人工核查"
+            }
+        )
 
     for item in rag_data.get("rag_knowledge", []):
 
         if item.get("knowledge_type") == "dynamic":
+
+            if not is_exportable_rag(
+                item
+            ):
+
+                continue
 
             rows.append(
                 {
@@ -397,6 +630,129 @@ def get_dynamic_notice_stats(rows):
     return stats
 
 
+def get_attention_stats(rows):
+
+    stats = {
+        "信息缺失": 0,
+        "信息冲突": 0,
+        "AI推断": 0,
+        "范围异常": 0
+    }
+
+    label_map = {
+        "missing": "信息缺失",
+        "conflict": "信息冲突",
+        "inference": "AI推断",
+        "range_issue": "范围异常"
+    }
+
+    for row in rows:
+
+        label = label_map.get(
+            row.get(
+                "检查类型"
+            ),
+            "信息缺失"
+        )
+
+        if label in stats:
+
+            stats[
+                label
+            ] += 1
+
+    return stats
+
+
+def get_attention_label(review_type):
+
+    return {
+        "missing": "信息缺失",
+        "conflict": "信息冲突",
+        "inference": "AI推断",
+        "range_issue": "范围异常"
+    }.get(
+        review_type,
+        "信息缺失"
+    )
+
+
+def build_attention_rows(review_rows):
+
+    rows = []
+
+    for row in review_rows:
+
+        review_type = row.get(
+            "检查类型"
+        )
+
+        if review_type == "dynamic_notice":
+
+            continue
+
+        rows.append(
+            {
+                "类型": get_attention_label(
+                    review_type
+                ),
+                "车型": row.get(
+                    "车型",
+                    ""
+                ),
+                "问题": row.get(
+                    "事项",
+                    ""
+                ),
+                "建议": row.get(
+                    "处理动作",
+                    ""
+                ) or row.get(
+                    "说明",
+                    ""
+                )
+            }
+        )
+
+    return rows
+
+
+def build_update_notice_rows(review_rows):
+
+    rows = []
+
+    for row in review_rows:
+
+        if row.get(
+            "检查类型"
+        ) != "dynamic_notice":
+
+            continue
+
+        rows.append(
+            {
+                "车型": row.get(
+                    "车型",
+                    ""
+                ),
+                "问题": row.get(
+                    "事项",
+                    ""
+                ),
+                "说明": row.get(
+                    "说明",
+                    ""
+                ),
+                "建议": row.get(
+                    "处理动作",
+                    ""
+                )
+            }
+        )
+
+    return rows
+
+
 def render_metric_card(title, value, caption=""):
 
     with st.container(border=True):
@@ -421,7 +777,7 @@ def display_risk_level(value):
     return value or ""
 
 
-def apply_filters(rows, model_label, category_label=None, trim_label=None):
+def apply_filters(rows, model_label, category_label=None, trim_label=None, key_prefix=""):
 
     if not rows:
 
@@ -447,7 +803,8 @@ def apply_filters(rows, model_label, category_label=None, trim_label=None):
 
         selected_model = st.selectbox(
             model_label,
-            model_options
+            model_options,
+            key=f"{key_prefix}_model_filter"
         )
 
         if selected_model != "全部":
@@ -472,7 +829,8 @@ def apply_filters(rows, model_label, category_label=None, trim_label=None):
 
         selected_category = st.selectbox(
             category_label,
-            category_options
+            category_options,
+            key=f"{key_prefix}_category_filter"
         )
 
         if selected_category != "全部":
@@ -497,7 +855,8 @@ def apply_filters(rows, model_label, category_label=None, trim_label=None):
 
         selected_trim = st.selectbox(
             trim_label,
-            trim_options
+            trim_options,
+            key=f"{key_prefix}_trim_filter"
         )
 
         if selected_trim != "全部":
@@ -511,7 +870,7 @@ def apply_filters(rows, model_label, category_label=None, trim_label=None):
     return filtered
 
 
-def show_table(rows, empty_text):
+def show_table(rows, empty_text, key=None):
 
     if isinstance(
         rows,
@@ -531,7 +890,8 @@ def show_table(rows, empty_text):
         st.dataframe(
             rows,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            key=key
         )
 
     else:
@@ -539,6 +899,130 @@ def show_table(rows, empty_text):
         st.info(
             empty_text
         )
+
+
+SUPPORTED_UPLOAD_TYPES = [
+    "xlsx",
+    "xls",
+    "docx",
+    "pdf",
+    "txt",
+    "png",
+    "jpg",
+    "jpeg",
+    "webp"
+]
+
+
+MAX_UPLOAD_FILE_COUNT = 100
+
+
+IMAGE_PREVIEW_CHARS = 1200
+
+
+def get_uploaded_file_extension(file):
+
+    return os.path.splitext(
+        file.name
+    )[1].lower()
+
+
+def is_image_upload(file):
+
+    return get_uploaded_file_extension(
+        file
+    ) in IMAGE_EXTENSIONS
+
+
+def build_material_block(file_name, content):
+
+    return "\n".join(
+        [
+            f"===== 文件：{file_name} =====",
+            content.strip()
+        ]
+    )
+
+
+def render_parse_preview(records):
+
+    st.subheader(
+        "资料解析预览"
+    )
+
+    rows = [
+        {
+            "文件名": record["file_name"],
+            "文件类型": record["file_type"],
+            "解析状态": record["status"]
+        }
+        for record in records
+    ]
+
+    show_table(
+        rows,
+        "暂无解析结果"
+    )
+
+    for record in records:
+
+        title = (
+            f"{record['file_name']} - {record['status']}"
+        )
+
+        with st.expander(
+            title,
+            expanded=False
+        ):
+
+            if record.get(
+                "is_image"
+            ) and record.get(
+                "image_bytes"
+            ):
+
+                st.image(
+                    record[
+                        "image_bytes"
+                    ],
+                    caption=record[
+                        "file_name"
+                    ],
+                    use_container_width=True
+                )
+
+            if record[
+                "status"
+            ] == "解析成功":
+
+                preview = record.get(
+                    "preview",
+                    ""
+                )
+
+                if len(
+                    preview
+                ) > IMAGE_PREVIEW_CHARS:
+
+                    st.text(
+                        preview[:IMAGE_PREVIEW_CHARS]
+                        + "\n...（内容已截断，完整内容已进入Material）"
+                    )
+
+                else:
+
+                    st.text(
+                        preview
+                    )
+
+            else:
+
+                st.error(
+                    record.get(
+                        "error",
+                        "解析失败"
+                    )
+                )
 
 
 st.title(
@@ -551,21 +1035,38 @@ st.caption(
 
 
 uploaded_files = st.file_uploader(
-    "上传汽车资料（支持 txt / Word / Excel / PDF）",
-    type=[
-        "txt",
-        "docx",
-        "xlsx",
-        "pdf"
-    ],
+    "上传汽车资料（支持 Excel、Word、PDF、TXT 及图片资料）",
+    type=SUPPORTED_UPLOAD_TYPES,
     accept_multiple_files=True
+)
+
+st.caption(
+    "图片可用于识别活动海报、价格截图、配置截图、PPT页面截图、朋友圈营销长图和产品卖点图片。"
+)
+
+st.caption(
+    f"单次最多 {MAX_UPLOAD_FILE_COUNT} 个文件；单张图片最大 10MB。"
 )
 
 
 if uploaded_files:
 
+    if len(
+        uploaded_files
+    ) > MAX_UPLOAD_FILE_COUNT:
+
+        st.error(
+            f"MVP阶段每次最多上传 {MAX_UPLOAD_FILE_COUNT} 个文件，请减少文件数量后重试。"
+        )
+
+        st.stop()
+
     st.success(
         f"已上传 {len(uploaded_files)} 个文件"
+    )
+
+    st.caption(
+        f"当前已选择：{len(uploaded_files)}/{MAX_UPLOAD_FILE_COUNT}"
     )
 
     with st.expander(
@@ -592,7 +1093,19 @@ if uploaded_files:
 
         materials = []
 
+        parse_records = []
+
         for file in uploaded_files:
+
+            file_type = get_uploaded_file_extension(
+                file
+            ).lstrip(
+                "."
+            )
+
+            is_image = is_image_upload(
+                file
+            )
 
             try:
 
@@ -600,10 +1113,37 @@ if uploaded_files:
                     f"正在解析：{file.name}"
                 )
 
-                materials.append(
-                    parse_file(
-                        file
+                content = parse_file(
+                    file
+                ).strip()
+
+                if not content:
+
+                    raise ValueError(
+                        "解析结果为空"
                     )
+
+                materials.append(
+                    build_material_block(
+                        file.name,
+                        content
+                    )
+                )
+
+                parse_records.append(
+                    {
+                        "file_name": file.name,
+                        "file_type": file_type,
+                        "status": "解析成功",
+                        "preview": content,
+                        "is_image": is_image,
+                        "image_bytes": (
+                            file.getvalue()
+                            if is_image and hasattr(file, "getvalue")
+                            else
+                            None
+                        )
+                    }
                 )
 
             except Exception as e:
@@ -612,12 +1152,71 @@ if uploaded_files:
                     f"{file.name}解析失败：{e}"
                 )
 
+                parse_records.append(
+                    {
+                        "file_name": file.name,
+                        "file_type": file_type,
+                        "status": "解析失败",
+                        "error": str(
+                            e
+                        ),
+                        "is_image": is_image,
+                        "image_bytes": (
+                            file.getvalue()
+                            if is_image and hasattr(file, "getvalue")
+                            else
+                            None
+                        )
+                    }
+                )
+
         material = "\n\n".join(
             materials
         )
 
+        render_parse_preview(
+            parse_records
+        )
+
+        if not material.strip():
+
+            st.error(
+                "没有可进入生成链路的有效资料，请检查上传文件或图片解析配置。"
+            )
+
+            st.stop()
+
+        image_records = [
+            record
+            for record in parse_records
+            if record.get(
+                "is_image"
+            )
+        ]
+
+        image_parse_stats = {
+            "image_file_count": len(
+                image_records
+            ),
+            "image_parse_success": sum(
+                1
+                for record in image_records
+                if record.get(
+                    "status"
+                ) == "解析成功"
+            ),
+            "image_parse_failed": sum(
+                1
+                for record in image_records
+                if record.get(
+                    "status"
+                ) != "解析成功"
+            ),
+            "vision_model": get_vision_model_name()
+        }
+
         parse_box.success(
-            f"全部解析完成，共{len(uploaded_files)}个文件"
+            f"解析完成，成功 {len(materials)} 个，失败 {len(uploaded_files) - len(materials)} 个"
         )
 
         status_box = st.empty()
@@ -660,7 +1259,8 @@ if uploaded_files:
                 source_files=[
                     file.name
                     for file in uploaded_files
-                ]
+                ],
+                image_parse_stats=image_parse_stats
             )
 
         st.success(
@@ -862,12 +1462,14 @@ if uploaded_files:
             static_table = apply_filters(
                 static_rows,
                 "车型筛选",
-                category_label="分类筛选"
+                category_label="分类筛选",
+                key_prefix="static"
             )
 
             show_table(
                 static_table,
-                "暂无车型配置知识"
+                "暂无车型配置知识",
+                key="static_knowledge_table"
             )
 
         with tabs[2]:
@@ -884,12 +1486,14 @@ if uploaded_files:
                 dynamic_rows,
                 "车型筛选 ",
                 category_label="分类筛选 ",
-                trim_label="版本筛选"
+                trim_label="版本筛选",
+                key_prefix="dynamic"
             )
 
             show_table(
                 dynamic_table,
-                "暂无价格政策知识"
+                "暂无价格政策知识",
+                key="dynamic_knowledge_table"
             )
 
         with tabs[3]:
@@ -899,73 +1503,103 @@ if uploaded_files:
             )
 
             st.caption(
-                "用于区分资料缺失、信息冲突、AI推断和动态知识提醒。动态知识提醒不是问题，只表示未来可能需要随市场政策更新。"
+                "用于区分需要人工处理的问题，以及未来可能需要维护更新的动态知识。"
             )
 
-            review_tabs = st.tabs(
-                [
-                    "信息缺失",
-                    "信息冲突",
-                    "AI推断",
-                    "动态知识提醒"
-                ]
+            attention_rows = build_attention_rows(
+                review_rows
             )
 
-            review_labels = [
-                ("missing", "暂无信息缺失"),
-                ("conflict", "暂无信息冲突"),
-                ("inference", "暂无AI推断"),
-                ("dynamic_notice", "暂无动态知识提醒")
-            ]
+            update_notice_rows = build_update_notice_rows(
+                review_rows
+            )
 
-            for tab, (review_type, empty_text) in zip(
-                review_tabs,
-                review_labels
+            with st.container(
+                border=True
             ):
 
-                with tab:
+                st.subheader(
+                    f"需要人工关注（{len(attention_rows)}）"
+                )
 
-                    filtered_rows = [
+                attention_stats = get_attention_stats(
+                    [
                         row
                         for row in review_rows
-                        if row.get(
-                            "检查类型"
-                        ) == review_type
+                        if row.get("检查类型") != "dynamic_notice"
                     ]
+                )
 
-                    if review_type == "dynamic_notice":
+                stat_cols = st.columns(4)
 
-                        stats = get_dynamic_notice_stats(
-                            filtered_rows
+                for stat_col, (name, value) in zip(
+                    stat_cols,
+                    attention_stats.items()
+                ):
+
+                    with stat_col:
+
+                        render_metric_card(
+                            name,
+                            value
                         )
 
-                        stat_cols = st.columns(4)
+                with st.expander(
+                    "展开需要人工关注的内容",
+                    expanded=bool(
+                        attention_rows
+                    )
+                ):
 
-                        for stat_col, (name, value) in zip(
-                            stat_cols,
-                            stats.items()
-                        ):
+                    show_table(
+                        attention_rows,
+                        "暂无需要人工关注的问题",
+                        key="attention_review_table"
+                    )
 
-                            with stat_col:
+            with st.container(
+                border=True
+            ):
 
-                                render_metric_card(
-                                    name,
-                                    value
-                                )
+                st.subheader(
+                    f"需要关注更新（{len(update_notice_rows)}）"
+                )
 
-                        with st.expander("展开详情"):
+                st.caption(
+                    "价格政策、金融政策、购车权益和活动政策不是错误，只是未来可能随市场变化需要维护。"
+                )
 
-                            show_table(
-                                filtered_rows,
-                                empty_text
-                            )
+                stats = get_dynamic_notice_stats(
+                    [
+                        row
+                        for row in review_rows
+                        if row.get("检查类型") == "dynamic_notice"
+                    ]
+                )
 
-                    else:
+                stat_cols = st.columns(4)
 
-                        show_table(
-                            filtered_rows,
-                            empty_text
+                for stat_col, (name, value) in zip(
+                    stat_cols,
+                    stats.items()
+                ):
+
+                    with stat_col:
+
+                        render_metric_card(
+                            name,
+                            value
                         )
+
+                with st.expander(
+                    "展开需要关注更新的内容"
+                ):
+
+                    show_table(
+                        update_notice_rows,
+                        "暂无需要关注更新的动态知识",
+                        key="update_notice_table"
+                    )
 
         with tabs[4]:
 
@@ -1058,7 +1692,8 @@ if uploaded_files:
 
             show_table(
                 issue_rows,
-                "暂无QC问题"
+                "暂无QC问题",
+                key="qc_issue_table"
             )
 
         with tabs[5]:
@@ -1071,6 +1706,20 @@ if uploaded_files:
                 "excel_paths",
                 {}
             )
+
+            excluded_count = result.get(
+                "rag",
+                {}
+            ).get(
+                "export_excluded_count",
+                0
+            )
+
+            if excluded_count:
+
+                st.info(
+                    f"已自动排除 {excluded_count} 条不适合导出的待确认知识，可在知识检查中心查看。"
+                )
 
             col_static_download,col_dynamic_download = st.columns(2)
 

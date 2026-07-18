@@ -3,6 +3,7 @@ import os
 
 from parser.docx_parser import parse_docx
 from parser.excel_parser import parse_excel
+from parser.image_parser import IMAGE_EXTENSIONS, parse_image
 from parser.pdf_parser import parse_pdf
 
 
@@ -90,6 +91,16 @@ def parse_file(file):
 
 
             return parse_pdf(
+                file
+            )
+
+
+        elif os.path.splitext(
+            filename_lower
+        )[1] in IMAGE_EXTENSIONS:
+
+
+            return parse_image(
                 file
             )
 

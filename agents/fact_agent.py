@@ -42,6 +42,106 @@ DYNAMIC_KEYWORDS = [
 ]
 
 
+POLICY_DATE_RANGE_PATTERN = re.compile(
+    r"(\d{4})年(\d{1,2})月(\d{1,2})日"
+    r"(?:至|到|-|—|~)"
+    r"(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日"
+)
+
+
+POLICY_DATE_SLASH_RANGE_PATTERN = re.compile(
+    r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})"
+    r".{0,30}?"
+    r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})"
+)
+
+
+POLICY_MONTH_PATTERN = re.compile(
+    r"(\d{4})年(\d{1,2})月|"
+    r"(\d{4})[/-](\d{1,2})[/-]\d{1,2}"
+)
+
+
+def format_date(year, month, day):
+
+    return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+
+
+def infer_policy_dates(text):
+
+    text = str(
+        text or ""
+    )
+
+    match = POLICY_DATE_RANGE_PATTERN.search(
+        text
+    )
+
+    if match:
+
+        start_year = match.group(1)
+        start_month = match.group(2)
+        start_day = match.group(3)
+        end_year = match.group(4) or start_year
+        end_month = match.group(5)
+        end_day = match.group(6)
+
+        return {
+            "policy_period": f"{start_year}年{int(start_month)}月",
+            "effective_date": format_date(
+                start_year,
+                start_month,
+                start_day
+            ),
+            "expire_date": format_date(
+                end_year,
+                end_month,
+                end_day
+            )
+        }
+
+    match = POLICY_DATE_SLASH_RANGE_PATTERN.search(
+        text
+    )
+
+    if match:
+
+        return {
+            "policy_period": f"{match.group(1)}年{int(match.group(2))}月",
+            "effective_date": format_date(
+                match.group(1),
+                match.group(2),
+                match.group(3)
+            ),
+            "expire_date": format_date(
+                match.group(4),
+                match.group(5),
+                match.group(6)
+            )
+        }
+
+    match = POLICY_MONTH_PATTERN.search(
+        text
+    )
+
+    if match:
+
+        year = match.group(1) or match.group(3)
+        month = match.group(2) or match.group(4)
+
+        return {
+            "policy_period": f"{year}年{int(month)}月",
+            "effective_date": "unknown",
+            "expire_date": "unknown"
+        }
+
+    return {
+        "policy_period": "unknown",
+        "effective_date": "unknown",
+        "expire_date": "unknown"
+    }
+
+
 def infer_knowledge_type(category, content=""):
 
     text = (
@@ -304,6 +404,45 @@ def normalize_fact_knowledge_type(data):
                     ""
                 )
             )
+
+        if not fact.get(
+            "source_file"
+        ):
+
+            fact[
+                "source_file"
+            ] = "unknown"
+
+        policy_dates = infer_policy_dates(
+            " ".join(
+                str(
+                    fact.get(
+                        field,
+                        ""
+                    )
+                )
+                for field in [
+                    "content",
+                    "source"
+                ]
+            )
+        )
+
+        for field in [
+            "policy_period",
+            "effective_date",
+            "expire_date"
+        ]:
+
+            if not fact.get(
+                field
+            ):
+
+                fact[
+                    field
+                ] = policy_dates[
+                    field
+                ]
 
     return data
 

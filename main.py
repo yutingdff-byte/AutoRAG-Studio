@@ -92,7 +92,8 @@ def save_json(output_dir, filename, data):
 def run_pipeline(
     material,
     progress_callback=None,
-    source_files=None
+    source_files=None,
+    image_parse_stats=None
 ):
 
     """
@@ -131,6 +132,8 @@ def run_pipeline(
 
 
     source_files = source_files or []
+
+    image_parse_stats = image_parse_stats or {}
 
 
     run_context = create_run_context()
@@ -297,6 +300,26 @@ def run_pipeline(
 
         "file_count": len(
             source_files
+        ),
+
+        "image_file_count": image_parse_stats.get(
+            "image_file_count",
+            0
+        ),
+
+        "image_parse_success": image_parse_stats.get(
+            "image_parse_success",
+            0
+        ),
+
+        "image_parse_failed": image_parse_stats.get(
+            "image_parse_failed",
+            0
+        ),
+
+        "vision_model": image_parse_stats.get(
+            "vision_model",
+            ""
         ),
 
         "output_dir": output_dir,

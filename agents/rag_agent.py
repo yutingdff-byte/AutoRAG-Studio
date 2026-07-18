@@ -3,6 +3,7 @@ import re
 from collections import defaultdict
 
 from agents.llm_client import call_llm
+from utils import rag_quality
 
 
 STATIC_KEYWORDS = [
@@ -68,6 +69,30 @@ VERSION_RANGE_KEYWORDS = [
     "青春版",
     "+"
 ]
+
+
+ANSWER_REPLACEMENTS = [
+    ("N·m", "牛米"),
+    ("N.m", "牛米"),
+    ("kWh", "度电"),
+    ("kW", "千瓦"),
+    ("km", "公里"),
+    ("mm", "毫米"),
+    ("Ps", "匹"),
+    (" V", " 伏"),
+    ("ADS", "ADS智能驾驶辅助系统"),
+    ("APA", "自动泊车"),
+    ("RPA", "遥控泊车"),
+    ("LCC", "车道居中辅助"),
+    ("NCA", "高速领航辅助")
+]
+
+
+def normalize_answer_for_tts(answer):
+
+    return rag_quality.normalize_answer_for_tts(
+        answer
+    )
 
 
 def infer_knowledge_type(category, content=""):
@@ -413,6 +438,28 @@ def normalize_vehicle_fields(item, ref_facts=None):
         None
     )
 
+    item[
+        "model_normalized"
+    ] = rag_quality.normalize_model_name(
+        item.get(
+            "model",
+            ""
+        )
+    )
+
+    if item.get(
+        "model"
+    ) and not item.get(
+        "model_display_name"
+    ):
+
+        item[
+            "model_display_name"
+        ] = item.get(
+            "model",
+            ""
+        )
+
 
 def build_fact_index(facts):
 
@@ -559,6 +606,15 @@ def normalize_rag_metadata(result, fact_index):
 
         normalize_trim_scope(
             rag
+        )
+
+        rag[
+            "answer"
+        ] = normalize_answer_for_tts(
+            rag.get(
+                "answer",
+                ""
+            )
         )
 
     return result
@@ -1591,6 +1647,11 @@ def generate_rag(facts):
     final_result = ensure_model_price_overview(
         final_result,
         facts
+    )
+
+
+    final_result = rag_quality.apply_export_quality_gate(
+        final_result
     )
 
 

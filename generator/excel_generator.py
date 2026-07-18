@@ -4,6 +4,12 @@ import re
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 
+from utils.rag_quality import (
+    apply_export_quality_gate,
+    is_exportable_rag,
+    normalize_answer_for_tts
+)
+
 
 DYNAMIC_KEYWORDS = [
     "价格",
@@ -223,6 +229,27 @@ def clean_filename(value):
     return value
 
 
+def normalize_brand_model_name(brand, model):
+
+    brand = clean_filename(
+        brand
+    )
+
+    model = clean_filename(
+        model
+    )
+
+    if brand and model.startswith(
+        brand
+    ):
+
+        return model
+
+    return clean_filename(
+        f"{brand}{model}"
+    )
+
+
 def infer_project_name(facts_data, rag_data, output_path):
 
     candidates = []
@@ -240,6 +267,10 @@ def infer_project_name(facts_data, rag_data, output_path):
             []
         )
     )
+
+    brands = []
+
+    models = []
 
     for item in candidates:
 
@@ -260,11 +291,46 @@ def infer_project_name(facts_data, rag_data, output_path):
             ""
         )
 
-        if brand or model:
+        if brand and brand not in brands:
 
-            return clean_filename(
-                f"{brand}{model}"
+            brands.append(
+                brand
             )
+
+        if model and model not in models:
+
+            models.append(
+                model
+            )
+
+    if len(
+        brands
+    ) == 1 and len(
+        models
+    ) == 1:
+
+        return clean_filename(
+            normalize_brand_model_name(
+                brands[0],
+                models[0]
+            )
+        )
+
+    if len(
+        brands
+    ) == 1 and len(
+        models
+    ) > 1:
+
+        return clean_filename(
+            brands[0]
+        )
+
+    if len(
+        brands
+    ) > 1:
+
+        return "多品牌"
 
     base_name = os.path.splitext(
         os.path.basename(
@@ -317,9 +383,15 @@ def generate_excel(
         []
     )
 
+    apply_export_quality_gate(
+        rag_data
+    )
+
     static_items = []
 
     dynamic_items = []
+
+    excluded_items = []
 
     for item in rag_list:
 
@@ -327,6 +399,25 @@ def generate_excel(
             item,
             dict
         ):
+
+            continue
+
+        item[
+            "answer"
+        ] = normalize_answer_for_tts(
+            item.get(
+                "answer",
+                ""
+            )
+        )
+
+        if not is_exportable_rag(
+            item
+        ):
+
+            excluded_items.append(
+                item
+            )
 
             continue
 
@@ -343,6 +434,16 @@ def generate_excel(
             static_items.append(
                 item
             )
+
+    rag_data[
+        "export_excluded"
+    ] = excluded_items
+
+    rag_data[
+        "export_excluded_count"
+    ] = len(
+        excluded_items
+    )
 
     output_paths = build_output_paths(
         output_path,

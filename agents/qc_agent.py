@@ -3,6 +3,7 @@ import re
 from collections import defaultdict
 
 from agents.llm_client import call_llm
+from utils.rag_quality import is_exportable_rag
 
 
 VERSION_RANGE_KEYWORDS = [
@@ -59,6 +60,33 @@ DYNAMIC_CLASSIFICATION_KEYWORDS = [
 ]
 
 
+STRONG_DYNAMIC_POLICY_KEYWORDS = [
+    "限时",
+    "活动期间",
+    "截至",
+    "截止",
+    "有效期",
+    "下定",
+    "订车",
+    "大定",
+    "锁单",
+    "补贴",
+    "抵扣",
+    "优惠价",
+    "金融费率",
+    "贴息",
+    "首付",
+    "月供",
+    "政策周期",
+    "活动时间",
+    "定金膨胀",
+    "购置税补贴",
+    "置换补贴",
+    "选装减免",
+    "指定现车礼"
+]
+
+
 STATIC_SERVICE_KEYWORDS = [
     "质保",
     "保修",
@@ -90,10 +118,31 @@ STATIC_SERVICE_KEYWORDS = [
 
 
 DYNAMIC_DATE_PATTERN = re.compile(
-    r"(\d{4}年)?\d{1,2}月\d{1,2}日|"
-    r"\d{4}[./-]\d{1,2}[./-]\d{1,2}|"
-    r"\d{1,2}[./-]\d{1,2}"
+    r"\d{4}年\d{1,2}月\d{1,2}日|"
+    r"\d{4}[./-]\d{1,2}[./-]\d{1,2}"
 )
+
+
+POLICY_MONTH_PATTERN = re.compile(
+    r"(\d{4})年(\d{1,2})月|"
+    r"(\d{4})[./-](\d{1,2})[./-]\d{1,2}"
+)
+
+
+DATE_CONTEXT_KEYWORDS = [
+    "有效期",
+    "截止",
+    "活动周期",
+    "活动时间",
+    "上线时间",
+    "下线时间",
+    "限时",
+    "下定",
+    "大定",
+    "政策周期",
+    "期间",
+    "至"
+]
 
 
 ADAS_RISK_KEYWORDS = [
@@ -221,19 +270,61 @@ def has_static_service_context(item_text):
 
 def has_dynamic_policy_signal(item_text):
 
-    return (
-        any(
-            keyword in item_text
-            for keyword in DYNAMIC_CLASSIFICATION_KEYWORDS
-        )
-        or DYNAMIC_DATE_PATTERN.search(
+    has_explicit_date = (
+        DYNAMIC_DATE_PATTERN.search(
             item_text
         )
         is not None
+        and any(
+            keyword in item_text
+            for keyword in DATE_CONTEXT_KEYWORDS
+        )
+    )
+
+    return (
+        has_explicit_date
+        or any(
+            keyword in item_text
+            for keyword in STRONG_DYNAMIC_POLICY_KEYWORDS
+        )
     )
 
 
+def extract_policy_periods(item_text):
+
+    if not any(
+        keyword in item_text
+        for keyword in DATE_CONTEXT_KEYWORDS
+    ):
+
+        return set()
+
+    periods = set()
+
+    for match in POLICY_MONTH_PATTERN.finditer(
+        item_text
+    ):
+
+        year = match.group(1) or match.group(3)
+
+        month = match.group(2) or match.group(4)
+
+        if year and month:
+
+            periods.add(
+                f"{year}年{int(month)}月"
+            )
+
+    return periods
+
+
 def should_report_static_dynamic_mismatch(item):
+
+    if not is_exportable_rag(
+        item
+    ):
+
+        return False
 
     if item.get(
         "knowledge_type"
@@ -255,34 +346,17 @@ def should_report_static_dynamic_mismatch(item):
         item_text
     ) and not any(
         keyword in item_text
-        for keyword in [
-            "限时",
-            "价格",
-            "售价",
-            "指导价",
-            "官方指导价",
-            "活动期间",
-            "下定",
-            "大定",
-            "购车权益",
-            "现金优惠",
-            "定金膨胀",
-            "购置税补贴",
-            "置换补贴",
-            "金融方案",
-            "费率",
-            "立减",
-            "抵扣",
-            "选装减免",
-            "指定现车礼",
-            "活动赠品",
-            "卡券有效期",
-            "截止日期",
-            "有效期"
-        ]
-    ) and DYNAMIC_DATE_PATTERN.search(
-        item_text
-    ) is None:
+        for keyword in STRONG_DYNAMIC_POLICY_KEYWORDS
+    ) and not (
+        DYNAMIC_DATE_PATTERN.search(
+            item_text
+        )
+        is not None
+        and any(
+            keyword in item_text
+            for keyword in DATE_CONTEXT_KEYWORDS
+        )
+    ):
 
         return False
 
@@ -320,6 +394,63 @@ def append_issue(data, issue):
         ] = "需优化"
 
 
+def refresh_summary(data, total_rag):
+
+    issues = [
+        issue
+        for issue in data.get(
+            "issues",
+            []
+        )
+        if isinstance(
+            issue,
+            dict
+        )
+    ]
+
+    warning = sum(
+        1
+        for issue in issues
+        if issue.get(
+            "risk_level"
+        ) == "warning"
+    )
+
+    error = sum(
+        1
+        for issue in issues
+        if issue.get(
+            "risk_level"
+        ) == "error"
+    )
+
+    data[
+        "summary"
+    ] = {
+        "total_rag": total_rag,
+        "pass": max(
+            total_rag - warning - error,
+            0
+        ),
+        "warning": warning,
+        "error": error
+    }
+
+    data[
+        "overall_result"
+    ] = (
+        "需处理"
+        if error
+        else
+        "需优化"
+        if warning
+        else
+        "通过"
+    )
+
+    return data
+
+
 def rule_based_quality_checks(rag_data, qc_data):
 
     if not isinstance(
@@ -339,15 +470,60 @@ def rule_based_quality_checks(rag_data, qc_data):
         []
     )
 
+    exportable_ids = {
+        item.get(
+            "rag_id"
+        )
+        for item in rag_list
+        if isinstance(
+            item,
+            dict
+        )
+        and is_exportable_rag(
+            item
+        )
+    }
+
+    qc_data[
+        "issues"
+    ] = [
+        issue
+        for issue in qc_data.get(
+            "issues",
+            []
+        )
+        if isinstance(
+            issue,
+            dict
+        )
+        and (
+            not issue.get(
+                "rag_id"
+            )
+            or issue.get(
+                "rag_id"
+            )
+            in exportable_ids
+        )
+    ]
+
     duplicate_groups = defaultdict(list)
 
     model_groups = defaultdict(list)
+
+    policy_period_groups = defaultdict(set)
 
     for item in rag_list:
 
         if not isinstance(
             item,
             dict
+        ):
+
+            continue
+
+        if not is_exportable_rag(
+            item
         ):
 
             continue
@@ -362,6 +538,33 @@ def rule_based_quality_checks(rag_data, qc_data):
         ].append(
             item
         )
+
+        item_text_for_period = build_item_text(
+            item
+        )
+
+        if item.get(
+            "knowledge_type"
+        ) == "dynamic":
+
+            period_key = (
+                model,
+                item.get(
+                    "category",
+                    item.get(
+                        "module",
+                        ""
+                    )
+                )
+            )
+
+            policy_period_groups[
+                period_key
+            ].update(
+                extract_policy_periods(
+                    item_text_for_period
+                )
+            )
 
         duplicate_key = (
             model,
@@ -584,6 +787,33 @@ def rule_based_quality_checks(rag_data, qc_data):
                 }
             )
 
+    for (model, category), periods in policy_period_groups.items():
+
+        if len(
+            periods
+        ) <= 1:
+
+            continue
+
+        append_issue(
+            qc_data,
+            {
+                "rag_id": "",
+                "issue_type": "政策周期混合风险",
+                "risk_level": "warning",
+                "display_level": "需人工关注",
+                "description": (
+                    f"发现{model}存在多个{category}周期："
+                    + "、".join(
+                        sorted(
+                            periods
+                        )
+                    )
+                ),
+                "suggestion": "建议确认当前有效政策，避免历史政策和当前政策同时进入导入文件。"
+            }
+        )
+
     for model, items in model_groups.items():
 
         if not model:
@@ -693,7 +923,12 @@ def rule_based_quality_checks(rag_data, qc_data):
                 }
             )
 
-    return qc_data
+    return refresh_summary(
+        qc_data,
+        len(
+            exportable_ids
+        )
+    )
 
 
 def quality_check(rag_data):

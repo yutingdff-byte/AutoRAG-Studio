@@ -165,6 +165,10 @@ Fact数据结构
 "category":"",
 "content":"",
 "source":"",
+"source_file":"",
+"policy_period":"",
+"effective_date":"",
+"expire_date":"",
 "confidence":"",
 "knowledge_type":""
 }
@@ -368,6 +372,60 @@ N6全系
 - 配置表中显示
 - 政策文件中说明
 - 官网资料中提及
+
+
+### source_file
+
+填写事实来自哪一个上传资料文件。
+
+如果Material中存在类似：
+
+===== 文件：阿维塔06T配置截图.png =====
+
+或：
+
+【文件来源：阿维塔06T配置截图.png】
+
+必须把对应文件名写入source_file。
+
+如果无法判断，填写：
+
+unknown
+
+
+### policy_period / effective_date / expire_date
+
+仅动态政策类事实需要尽量填写。
+
+policy_period示例：
+
+- 2026年7月
+- 2025年9月
+- unknown
+
+effective_date和expire_date使用YYYY-MM-DD格式。
+
+例如：
+
+资料写明：
+
+2026年7月1日至2026年7月31日限时权益
+
+必须输出：
+
+"policy_period":"2026年7月"
+
+"effective_date":"2026-07-01"
+
+"expire_date":"2026-07-31"
+
+如果无法识别：
+
+"policy_period":"unknown"
+
+"effective_date":"unknown"
+
+"expire_date":"unknown"
 
 
 

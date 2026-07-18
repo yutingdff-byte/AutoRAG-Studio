@@ -1,5 +1,97 @@
 # AutoRAG-Studio Changelog
 
+## V0.7.2 - Generate Stable Quality Gate
+
+Date: 2026-07-18
+
+Status: Completed
+
+### Fixed
+
+- Added a unified export quality gate for RAG knowledge.
+- `need_confirm`, `missing`, `conflict`, `inference`, invalid, empty-answer, and missing-answer RAG items no longer enter the formal Excel files.
+- RAG post-processing marks blocked items with `exportable: false` and an `export_block_reason`.
+- Excel export performs the same quality gate again before writing rows.
+- Existing effective knowledge now wins over contradictory missing-answer RAG items for the same model and topic.
+- Fixed QC static/dynamic false positives for fixed vehicle benefits such as warranty, roadside assistance, fixed traffic packages, and standard driving-assistance capability.
+- Dynamic classification mismatch now requires stronger policy signals such as limited time, order condition, subsidy, deduction, finance rate, or policy period.
+- Knowledge Review Center normalizes mixed string/object review data so model, item, reason, and suggestion are no longer blank.
+- Added TTS normalization for RMB price symbols, yuan prices, percentages, 10G traffic wording, voltage, and common driving-assistance abbreviations.
+- Added lightweight `model_normalized` support for future V0.8 matching while keeping Excel display names unchanged.
+
+### Verified
+
+- Offline regression on `output/20260718_161941` excludes `RAG-099` through `RAG-104`.
+- Static Excel rows reduced from 84 to 78; dynamic Excel remains 54.
+- `RAG-063` no longer triggers static/dynamic QC mismatch.
+- Review item normalization produced no blank model/item/suggestion fields in the regression set.
+
+### Notes
+
+- This release does not implement knowledge update mode.
+- This release does not implement QC auto-fix Agent Loop.
+- PPT parsing remains out of scope.
+
+## V0.7.1 - Stable Business Optimization
+
+Date: 2026-07-16
+
+Status: Completed
+
+### Added
+
+- Knowledge Review Center now separates:
+  - 需要人工关注
+  - 需要关注更新
+- QC detects mixed policy periods for the same model and category.
+- Fact prompt and post-processing support:
+  - `source_file`
+  - `policy_period`
+  - `effective_date`
+  - `expire_date`
+- RAG post-processing normalizes TTS-sensitive units and abbreviations.
+- Upload area shows max file count, image size guidance, and selected file count.
+- Streamlit widgets and dataframes now use more stable keys.
+
+### Fixed
+
+- Multi-model Excel output no longer uses the first model name as the project name.
+- Same-brand multi-model output uses the brand name.
+- Avoids duplicated brand/model names such as `阿维塔阿维塔06T`.
+- QC no longer treats numeric formats such as `15.6英寸`, `7.1.4声场`, or `30%-80%` as policy dates.
+- Information gap display now uses structured model/category/module coverage checks before showing missing items.
+
+### Notes
+
+- This release does not implement knowledge update mode.
+- This release does not implement QC auto-fix loops.
+- PPT parsing remains out of scope.
+
+## V0.7.0 - Image Parser MVP
+
+Date: 2026-07-14
+
+Status: In development
+
+### Added
+
+- Qwen-VL-Plus image parser MVP.
+- Supported image formats: PNG, JPG, JPEG, WEBP.
+- Image files are converted to Base64 Data URLs and sent through an OpenAI-compatible Qwen client.
+- Image parsing returns plain text Material for the existing DeepSeek Fact/RAG/QC pipeline.
+- Streamlit upload supports mixed files: Excel, Word, PDF, TXT, and images.
+- Added parsing preview with file name, file type, status, and recognized text preview.
+- Added image parsing statistics to `run_info.json`.
+- Added `.env.example` entries for Qwen Vision configuration.
+
+### Constraints
+
+- No OCR coordinate display.
+- No image cropping or correction.
+- No PPT file parsing.
+- No model router.
+- No knowledge update mode in this release.
+
 ## V0.6.6 - V0.6 Stable
 
 Date: 2026-07-14

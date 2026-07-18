@@ -1,8 +1,8 @@
 # AutoRAG-Studio Roadmap
 
-Current Stable Version: V0.6.6
+Current Stable Version: V0.7.2
 
-Date: 2026-07-14
+Date: 2026-07-18
 
 ## Product Direction
 
@@ -43,7 +43,75 @@ V0.6 output:
 - 价格政策知识库
 - Review console for gaps, conflicts, AI inference, dynamic reminders, and QC suggestions
 
-## V0.7 - Knowledge Update Mode
+## V0.7.0 - Image Material Recognition MVP
+
+Status: In development
+
+Goal:
+
+Support automotive image materials as input without changing the existing Fact/RAG/QC agents.
+
+Supported formats:
+
+- PNG
+- JPG
+- JPEG
+- WEBP
+
+Model responsibilities:
+
+- Qwen-VL-Plus: image to structured plain text Material
+- DeepSeek-V4-Flash: Fact extraction, RAG generation, QC
+
+Out of scope:
+
+- OCR coordinates
+- Image editing or generation
+- Image cropping and correction
+- PPT file parsing
+- Model router
+- Knowledge update mode
+
+## V0.7.1 - Stable Business Optimization
+
+Status: Completed
+
+Goal:
+
+Make generated knowledge more suitable for real AI outbound-call delivery.
+
+Completed:
+
+- Simplified knowledge review center.
+- Fixed multi-model Excel naming.
+- Added policy-period conflict QC.
+- Reduced QC date false positives.
+- Improved structural coverage checks for information gaps.
+- Added source file and policy period guidance.
+- Improved unit and abbreviation pronunciation for TTS.
+- Added upload guidance for file count and image size.
+
+## V0.7.2 - Generate Stable Quality Gate
+
+Status: Completed
+
+Goal:
+
+Freeze the Generate module by preventing unsafe or contradictory knowledge from entering formal outbound-call Excel files.
+
+Completed:
+
+- Missing, unconfirmed, invalid, and conflict/inference review RAG items are blocked from Excel export.
+- RAG post-processing and Excel export share the same exportability rules.
+- Contradictory missing-answer RAG is blocked when the same model and topic already has effective knowledge.
+- Blocked knowledge is moved into the Knowledge Review Center for human attention.
+- Fixed static/dynamic QC false positives for fixed benefits and vehicle capabilities.
+- Kept real limited-time policy signals detectable.
+- Normalized Knowledge Review Center rows so model, item, reason, and suggestion are not blank.
+- Added TTS cleanup for RMB prices, percentages, voltage, traffic package wording, and common abbreviations.
+- Added lightweight model normalization for future matching.
+
+## V0.8 - Knowledge Update Mode
 
 Status: Next
 
@@ -70,7 +138,7 @@ Planned capabilities:
 - Generate update diff report
 - Export updated dynamic knowledge
 
-## V0.8 - Multimodal Material Parsing
+## V0.8.x - Multimodal Material Parsing Enhancement
 
 Status: Planned
 
