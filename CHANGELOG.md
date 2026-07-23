@@ -1,5 +1,46 @@
 # AutoRAG-Studio Changelog
 
+## V0.7.3 - Cloud Ready
+
+Date: 2026-07-23
+
+Status: Completed
+
+### Added
+
+- Added Streamlit Community Cloud deployment documentation in `DEPLOY.md`.
+- Added project quick-start documentation in `README.md`.
+- Added `PROJECT_CLEANUP_REPORT.md` for project cleanup classification.
+- Added `runtime.txt` with `python-3.11`.
+- Added `.streamlit/config.toml` with upload size configuration.
+- Added `.streamlit/secrets.toml.example` for cloud Secrets setup.
+- Added unified configuration helper for Streamlit Secrets, environment variables, and local `.env`.
+
+### Changed
+
+- DeepSeek and Qwen configuration now read in this order:
+  1. Streamlit Secrets
+  2. System environment variables
+  3. Local `.env`
+- `requirements.txt` now uses conservative production version ranges.
+- `.gitignore` now explicitly excludes local Streamlit secrets, Python bytecode, pytest cache, logs, temp files, and backup files.
+
+### Fixed
+
+- Avoids Streamlit startup failure when Secrets are not yet configured by creating the DeepSeek client lazily during model calls.
+- Keeps Qwen Vision image parsing compatible with Streamlit Cloud Secrets.
+
+### Cleanup
+
+- Removed local Python cache directories only.
+- Kept historical `output/` runs local and ignored for regression reference.
+
+### Notes
+
+- Generate business behavior remains based on V0.7.2 Stable.
+- No changes were made to prompt rules, static/dynamic classification, Excel fields, Excel naming, or export quality gate logic.
+- Streamlit Cloud code adaptation is complete, but actual cloud deployment must be performed from the user's Streamlit account.
+
 ## V0.7.2 - Generate Stable Quality Gate
 
 Date: 2026-07-18

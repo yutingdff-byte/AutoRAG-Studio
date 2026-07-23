@@ -1,10 +1,10 @@
 # AutoRAG-Studio Current Task
 
-Version: V0.7.2
+Version: V0.7.3
 
 Status: Completed
 
-Milestone: V0.7.2 Stable
+Milestone: V0.7.3 Cloud Ready
 
 ## Completed In V0.6
 
@@ -19,7 +19,7 @@ Milestone: V0.7.2 Stable
 
 ## Current Stable State
 
-V0.7.2 is the current stable Generate baseline.
+V0.7.3 Cloud Ready is the current deployable Generate baseline.
 
 The system can:
 
@@ -33,20 +33,24 @@ The system can:
 - Block missing, unconfirmed, invalid, and contradictory no-information RAG from formal Excel export
 - Keep blocked knowledge visible in the Knowledge Review Center
 - Normalize common TTS-sensitive prices, units, percentages, and driving-assistance abbreviations
+- Read model configuration from Streamlit Secrets, environment variables, or local `.env`
+- Run with Streamlit Community Cloud-oriented runtime and dependency files
 
 ## Current Task
 
-V0.7.2: RC bugfix and Generate quality gate stabilization.
+V0.7.3: Cloud Ready engineering and deployment compatibility.
 
 Completed:
 
-- Missing and need-confirm RAG items are excluded from formal Excel export.
-- Contradictory missing-answer RAG is blocked when valid same-model same-topic knowledge exists.
-- Excel export repeats the export quality gate as a safeguard.
-- Fixed static/dynamic QC false positives for fixed benefits such as warranty, roadside assistance, fixed traffic packages, and standard driving-assistance capability.
-- Knowledge Review Center normalizes string and object review data into model, item, reason, and suggestion fields.
-- Added TTS cleanup for RMB prices, percentages, traffic package wording, voltage, and common driving-assistance abbreviations.
-- Added `model_normalized` for future V0.8 matching while preserving Excel display names.
+- Streamlit Cloud deployment guide added.
+- README updated.
+- Cleanup report added.
+- Runtime pinned to Python 3.11.
+- Requirements organized with production version ranges.
+- Streamlit Secrets support added while keeping local `.env` support.
+- Minimal Streamlit config added.
+- Low-risk Python cache cleanup completed.
+- Generate business rules and Excel output structure remain unchanged from V0.7.2.
 
 ## Next Task
 

@@ -1,26 +1,35 @@
-import os
-
-from dotenv import load_dotenv
 from openai import OpenAI
 
+from utils.config import get_config, require_config
 
-load_dotenv()
 
+def get_client():
 
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)
+    return OpenAI(
+        api_key=require_config(
+            "DEEPSEEK_API_KEY",
+            "DeepSeek文本模型"
+        ),
+        base_url=get_config(
+            "DEEPSEEK_BASE_URL",
+            "https://api.deepseek.com"
+        )
+    )
 
 
 def call_llm(system_prompt, user_content):
 
     try:
 
+        client = get_client()
+
         response = client.chat.completions.create(
 
             # 根据你的DeepSeek账号实际可用模型调整
-            model="deepseek-v4-flash",
+            model=get_config(
+                "DEEPSEEK_MODEL",
+                "deepseek-v4-flash"
+            ),
 
             messages=[
                 {

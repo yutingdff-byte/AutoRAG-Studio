@@ -1,8 +1,8 @@
 # AutoRAG-Studio Roadmap
 
-Current Stable Version: V0.7.2
+Current Stable Version: V0.7.3 Cloud Ready
 
-Date: 2026-07-18
+Date: 2026-07-23
 
 ## Product Direction
 
@@ -110,6 +110,26 @@ Completed:
 - Normalized Knowledge Review Center rows so model, item, reason, and suggestion are not blank.
 - Added TTS cleanup for RMB prices, percentages, voltage, traffic package wording, and common abbreviations.
 - Added lightweight model normalization for future matching.
+
+## V0.7.3 - Cloud Ready
+
+Status: Completed
+
+Goal:
+
+Prepare the frozen Generate module for Streamlit Community Cloud deployment without changing business output behavior.
+
+Completed:
+
+- Streamlit Cloud deployment documentation.
+- Python runtime pin.
+- Production dependency version ranges.
+- Streamlit Secrets support.
+- Local `.env` compatibility for development.
+- Minimal Streamlit config.
+- Project cleanup classification.
+- Low-risk local cache cleanup.
+- README and data safety notes.
 
 ## V0.8 - Knowledge Update Mode
 

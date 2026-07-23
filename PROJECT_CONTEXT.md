@@ -1,10 +1,10 @@
 # AutoRAG-Studio Project Context
 
-Version: V0.7.2
+Version: V0.7.3
 
-Status: V0.7.2 Stable
+Status: V0.7.3 Cloud Ready
 
-Last Update: 2026-07-18
+Last Update: 2026-07-23
 
 ## 1. Project Goal
 
@@ -211,7 +211,36 @@ Completed:
 - RAG answers receive additional TTS normalization for RMB prices, percentages, voltage, traffic packages, and driving-assistance abbreviations.
 - `model_normalized` is added for future V0.8 matching while Excel continues to display `model`.
 
-## 9. Known Constraints
+## 9. V0.7.3 Cloud Ready
+
+V0.7.3 prepares AutoRAG-Studio for Streamlit Community Cloud without changing Generate business behavior.
+
+Completed:
+
+- Added Streamlit Cloud deployment guide.
+- Added README quick start and safety notes.
+- Added project cleanup report.
+- Added `runtime.txt` with `python-3.11`.
+- Added minimal `.streamlit/config.toml`.
+- Added `.streamlit/secrets.toml.example`.
+- Added unified config lookup:
+  1. Streamlit Secrets
+  2. Environment variables
+  3. Local `.env`
+- Kept `.env`, `.streamlit/secrets.toml`, `.venv`, `output`, generated Excel, caches, logs, and temp files out of Git.
+- Removed only low-risk local Python cache directories.
+
+V0.7.3 does not change:
+
+- Fact extraction rules
+- RAG generation strategy
+- QC policy rules
+- Export quality gate logic
+- Excel naming
+- Excel fields
+- Static/dynamic split
+
+## 10. Known Constraints
 
 - Image parsing is available as a V0.7.0 MVP through Qwen-VL-Plus.
 - PPT parsing is not implemented.
@@ -222,10 +251,11 @@ Completed:
 - A single image is limited to 10MB in the MVP.
 - Policy-period detection only reports mixed periods; it does not automatically delete or expire historical policy knowledge.
 - V0.7.2 blocks unsafe export rows, but it does not automatically rewrite or repair them.
+- V0.7.3 has not been deployed from this local environment because Streamlit Community Cloud access requires the user's account.
 
-## 10. Next Phase
+## 11. Next Phase
 
-After V0.7.2 Generate stabilization, the next phase will focus on knowledge update mode:
+After V0.7.3 Cloud Ready stabilization, the next phase will focus on knowledge update mode:
 
 1. Upload old knowledge base plus new policy material.
 2. Automatically detect added, changed, and expired policy knowledge.
