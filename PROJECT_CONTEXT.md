@@ -1,10 +1,10 @@
 # AutoRAG-Studio Project Context
 
-Version: V0.7.3
+Version: V0.8.0-dev
 
-Status: V0.7.3 Cloud Ready
+Status: V0.8 Milestone 1 - Architecture and UI Foundation
 
-Last Update: 2026-07-23
+Last Update: 2026-07-26
 
 ## 1. Project Goal
 
@@ -40,9 +40,18 @@ Main modules:
 - `agents/rag_agent.py`: RAG knowledge generation
 - `agents/qc_agent.py`: quality checks
 - `generator/excel_generator.py`: static/dynamic Excel export
-- `app.py`: Streamlit review console
+- `app.py`: Streamlit app setup, navigation, and page routing
+- `pages/`: Home, Generate, and Update page renderers
+- `ui/`: shared Streamlit styles and reusable UI components
+- `knowledge/`: initial Knowledge Object definitions for future update mode
+- `diff/`, `review/`, `merge/`, `exporter/`: V0.8 workflow placeholders
 - `prompts/`: Step1, Step2, Step3 prompt rules
 - `schemas/`: export schema reference
+
+V0.8 Milestone 1 keeps the Generate business pipeline frozen and adds the platform foundation for two work modes:
+
+- Generate: create a new knowledge base from source materials. This remains the stable production workflow.
+- Update: future workflow for comparing old knowledge with new materials. In this milestone it is only a page skeleton and does not run Diff, Review, Merge, or Update Export.
 
 ## 3. Current Data Design
 

@@ -1,10 +1,10 @@
 # AutoRAG-Studio Current Task
 
-Version: V0.7.3
+Version: V0.8.0-dev
 
-Status: Completed
+Status: In Progress
 
-Milestone: V0.7.3 Cloud Ready
+Milestone: V0.8.0 Milestone 1 - Architecture Refactor + UI Readability Upgrade
 
 ## Completed In V0.6
 
@@ -38,26 +38,34 @@ The system can:
 
 ## Current Task
 
-V0.7.3: Cloud Ready engineering and deployment compatibility.
+V0.8.0 Milestone 1: platform architecture and UI foundation.
 
-Completed:
+In progress:
 
-- Streamlit Cloud deployment guide added.
-- README updated.
-- Cleanup report added.
-- Runtime pinned to Python 3.11.
-- Requirements organized with production version ranges.
-- Streamlit Secrets support added while keeping local `.env` support.
-- Minimal Streamlit config added.
-- Low-risk Python cache cleanup completed.
-- Generate business rules and Excel output structure remain unchanged from V0.7.2.
+- Create a dual-mode Home page for Generate and Update.
+- Refactor `app.py` into a lightweight setup and router.
+- Move Generate page rendering into a dedicated page module while preserving business behavior.
+- Add an Update page skeleton without implementing Knowledge Parser, Diff, Review, Merge, or Update Export.
+- Add shared UI styles and components.
+- Add initial Knowledge Object definitions for future adapters.
+
+Generate freeze rules:
+
+- Do not change Fact extraction rules.
+- Do not change RAG generation rules.
+- Do not change QC rules.
+- Do not change parser behavior.
+- Do not change Excel fields, naming, static/dynamic split, or export quality gate.
 
 ## Next Task
 
-Start V0.8 knowledge update mode design.
+V0.8 Milestone 2: Knowledge Parser.
 
 ## Future Tasks
 
-1. Old knowledge base plus new policy material automatic update.
-2. Image material parsing enhancement.
-3. QC-assisted fixing with user accept/ignore choices.
+1. Standard Excel to Knowledge Object.
+2. Word material to Facts/RAG/Knowledge Object.
+3. Knowledge Diff with KEEP/ADD/MODIFY/REMOVE_CANDIDATE.
+4. Review confirmation workflow.
+5. Merge and Update-mode export.
+6. QC-assisted fixing with user accept/ignore choices.

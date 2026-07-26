@@ -2,7 +2,9 @@
 
 Current Stable Version: V0.7.3 Cloud Ready
 
-Date: 2026-07-23
+Current Development Version: V0.8.0-dev
+
+Date: 2026-07-26
 
 ## Product Direction
 
@@ -118,6 +120,31 @@ Status: Completed
 Goal:
 
 Prepare the frozen Generate module for Streamlit Community Cloud deployment without changing business output behavior.
+
+## V0.8.0 Milestone 1 - Architecture and UI Foundation
+
+Status: In development
+
+Goal:
+
+Turn AutoRAG-Studio into a two-mode platform foundation without changing the frozen Generate business output.
+
+Scope:
+
+- Add a Home page with Generate and Update mode entries.
+- Refactor Streamlit app structure into page modules and shared UI components.
+- Keep Generate workflow, prompts, Agents, parser logic, Excel output, and export quality gate unchanged.
+- Add an Update page skeleton for future Knowledge Parser, Diff, Review, Merge, and Update Export.
+- Add initial Knowledge Object definitions for later adapters.
+
+Out of scope:
+
+- Real historical knowledge parsing.
+- Knowledge Diff.
+- Review decision persistence.
+- Merge.
+- Update-mode Excel export.
+- Embeddings, vector database, account system, or task history.
 
 Completed:
 

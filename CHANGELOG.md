@@ -1,5 +1,33 @@
 # AutoRAG-Studio Changelog
 
+## V0.8.0-dev - Architecture and UI Foundation
+
+Date: 2026-07-26
+
+Status: In development
+
+### Added
+
+- Added a dual-mode home page for Generate and Update workflows.
+- Added `pages/` modules for home, Generate, and Update page rendering.
+- Added shared `ui/` styles and components for headers, steps, feature cards, metrics, file cards, and footer.
+- Added V0.8 placeholder packages for `knowledge/`, `diff/`, `review/`, `merge/`, and `exporter/`.
+- Added an initial `KnowledgeItem` dataclass as the future unified knowledge object foundation.
+- Added an Update page skeleton with history material upload, new material upload, Diff preview, and Review preview placeholders.
+
+### Changed
+
+- Refactored `app.py` into a lightweight Streamlit entrypoint for page setup, global styling, navigation, and routing.
+- Wrapped the existing Generate UI in `pages/generate_page.py` while preserving the existing Generate pipeline calls.
+- Lightly improved Generate page readability with a page header, step navigation, and uploaded file cards.
+- Disabled Streamlit's automatic sidebar page navigation so the app-level navigation remains the single source of truth.
+
+### Notes
+
+- Generate business logic remains frozen.
+- No changes were made to prompts, Agent rules, parser behavior, Excel fields, Excel naming, static/dynamic splitting, or export quality gate logic.
+- Update mode is a UI and architecture foundation only. Knowledge Parser, Diff, Review, Merge, and Update Export are not implemented in this milestone.
+
 ## V0.7.3 - Cloud Ready
 
 Date: 2026-07-23
