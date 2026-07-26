@@ -4,7 +4,7 @@ Version: V0.8.0-dev
 
 Status: In Progress
 
-Milestone: V0.8.0 Milestone 1 - Architecture Refactor + UI Readability Upgrade
+Milestone: V0.8.0 Milestone 2 - Knowledge Restore & Parser Foundation
 
 ## Completed In V0.6
 
@@ -38,9 +38,9 @@ The system can:
 
 ## Current Task
 
-V0.8.0 Milestone 1: platform architecture and UI foundation.
+V0.8.0 Milestone 2: Knowledge Restore and Parser Foundation.
 
-In progress:
+Completed in Milestone 1:
 
 - Create a dual-mode Home page for Generate and Update.
 - Refactor `app.py` into a lightweight setup and router.
@@ -48,6 +48,14 @@ In progress:
 - Add an Update page skeleton without implementing Knowledge Parser, Diff, Review, Merge, or Update Export.
 - Add shared UI styles and components.
 - Add initial Knowledge Object definitions for future adapters.
+
+In progress:
+
+- Restore standard AutoRAG Excel exports into `KnowledgeItem[]`.
+- Restore Word history knowledge by reusing existing Parser -> Fact Agent -> RAG Agent.
+- Convert generated RAG JSON into `KnowledgeItem[]` through a Knowledge Adapter.
+- Add Restore Manager as the Update mode entrypoint.
+- Show restored knowledge statistics and preview on the Update page.
 
 Generate freeze rules:
 
@@ -59,7 +67,7 @@ Generate freeze rules:
 
 ## Next Task
 
-V0.8 Milestone 2: Knowledge Parser.
+V0.8 Milestone 3: Diff Engine.
 
 ## Future Tasks
 

@@ -1,10 +1,36 @@
 # AutoRAG-Studio Changelog
 
-## V0.8.0-dev - Architecture and UI Foundation
+## V0.8.0-dev - Knowledge Restore and Parser Foundation
 
 Date: 2026-07-26
 
 Status: In development
+
+### Added
+
+- Added `knowledge.adapter` to convert RAG JSON and restored Excel rows into `KnowledgeItem` objects.
+- Added `knowledge.excel_restore` for restoring standard AutoRAG Excel exports into unified knowledge objects.
+- Added `knowledge.word_restore` for restoring Word knowledge material through the existing Parser -> Fact Agent -> RAG Agent chain.
+- Added `knowledge.restore_manager` as the Update mode restore entrypoint.
+- Added Update page restore statistics and a restored knowledge preview table.
+- Added restore unit tests covering Excel restore, Word restore via existing Agent interfaces, and restore manager mixed results.
+
+### Changed
+
+- Expanded `KnowledgeItem` with `normalized_question` and internal `knowledge_type` for future Diff inputs.
+- Update mode now restores history knowledge files before the future Diff step.
+
+### Notes
+
+- Diff Engine, Review, Merge, and Update Export are still out of scope.
+- Generate business logic remains frozen.
+- No changes were made to prompts, parser behavior, Agent logic, Excel export logic, or export quality gate logic.
+
+## V0.8.0-dev - Architecture and UI Foundation
+
+Date: 2026-07-26
+
+Status: Completed
 
 ### Added
 

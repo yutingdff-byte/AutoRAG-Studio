@@ -2,7 +2,7 @@
 
 Version: V0.8.0-dev
 
-Status: V0.8 Milestone 1 - Architecture and UI Foundation
+Status: V0.8 Milestone 2 - Knowledge Restore and Parser Foundation
 
 Last Update: 2026-07-26
 
@@ -43,15 +43,32 @@ Main modules:
 - `app.py`: Streamlit app setup, navigation, and page routing
 - `pages/`: Home, Generate, and Update page renderers
 - `ui/`: shared Streamlit styles and reusable UI components
-- `knowledge/`: initial Knowledge Object definitions for future update mode
+- `knowledge/`: Knowledge Object definitions, restore adapters, Excel restore, Word restore, and restore manager
 - `diff/`, `review/`, `merge/`, `exporter/`: V0.8 workflow placeholders
 - `prompts/`: Step1, Step2, Step3 prompt rules
 - `schemas/`: export schema reference
 
-V0.8 Milestone 1 keeps the Generate business pipeline frozen and adds the platform foundation for two work modes:
+V0.8 keeps the Generate business pipeline frozen and adds the platform foundation for two work modes:
 
 - Generate: create a new knowledge base from source materials. This remains the stable production workflow.
-- Update: future workflow for comparing old knowledge with new materials. In this milestone it is only a page skeleton and does not run Diff, Review, Merge, or Update Export.
+- Update: restore historical knowledge into unified `KnowledgeItem` objects, then in later milestones compare old knowledge with new materials.
+
+Milestone 2 Update restore flow:
+
+```text
+Standard Excel
+-> Excel Restore
+-> KnowledgeItem[]
+
+Word
+-> Existing Parser
+-> Existing Fact Agent
+-> Existing RAG Agent
+-> Knowledge Adapter
+-> KnowledgeItem[]
+```
+
+Milestone 2 still does not implement Diff, Review decisions, Merge, or Update-mode Excel export.
 
 ## 3. Current Data Design
 

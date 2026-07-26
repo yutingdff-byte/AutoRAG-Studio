@@ -21,3 +21,4 @@ def test_knowledge_item_defaults_are_isolated():
     assert second.fact_refs == []
     assert second.metadata == {}
     assert first.need_confirm is False
+    assert first.normalized_question == "多少钱？"

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from knowledge.adapter import knowledge_to_preview_rows
+from knowledge.restore_manager import RestoreResult, restore
 from ui.components import (
     render_file_card,
     render_metric_cards,
@@ -36,6 +38,48 @@ def _render_uploaded_files(files, empty_text: str) -> None:
         render_file_card(file.name, _file_type(file), size, "文件已接收")
 
 
+def _restore_history_files(files) -> RestoreResult:
+    if not files:
+        st.session_state.update_restore_result = None
+        return RestoreResult()
+
+    with st.spinner("正在恢复历史知识..."):
+        result = restore(files)
+
+    st.session_state.update_restore_result = result
+    return result
+
+
+def _render_restore_result(result: RestoreResult) -> None:
+    render_section_title("恢复结果")
+
+    render_metric_cards(
+        [
+            ("恢复知识", result.restored_count, "从历史知识文件恢复出的统一知识对象数量"),
+            ("涉及车型", result.model_count, "根据历史知识中的车型字段统计"),
+            ("待确认", result.need_confirm_count, "历史知识中标记为需要确认的条目"),
+        ]
+    )
+
+    for file_result in result.files:
+        if file_result.success:
+            st.success(
+                f"{file_result.file_name}：恢复 {len(file_result.items)} 条知识"
+            )
+        else:
+            st.error(
+                f"{file_result.file_name}：{file_result.error or '知识恢复失败，请检查文件格式。'}"
+            )
+
+    if result.items:
+        with st.expander("恢复结果预览", expanded=True):
+            st.dataframe(
+                knowledge_to_preview_rows(result.items),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+
 def render_update_page() -> None:
     render_page_header(
         "更新已有知识库 Update",
@@ -59,7 +103,7 @@ def render_update_page() -> None:
     with old_col:
         render_section_title("历史知识")
         st.caption(
-            "支持导入已有 Excel 或 Word 知识资料。Excel 将按标准字段读取；Word 后续将通过 Facts → RAG 流程恢复为统一知识对象。"
+            "支持导入已有 Excel 或 Word 知识资料。Excel 将按标准字段读取；Word 将通过现有 Parser → Facts → RAG 流程恢复为统一知识对象。"
         )
         old_files = st.file_uploader(
             "上传历史知识文件",
@@ -68,6 +112,8 @@ def render_update_page() -> None:
             key="update_old_files",
         )
         _render_uploaded_files(old_files, "尚未上传历史知识文件。")
+
+        restore_result = _restore_history_files(old_files)
 
     with new_col:
         render_section_title("新增资料")
@@ -80,8 +126,11 @@ def render_update_page() -> None:
         )
         _render_uploaded_files(new_files, "尚未上传新增资料。")
 
-    if old_files or new_files:
-        st.info("文件已接收。Knowledge Parser 将在下一开发阶段接入。")
+    if old_files:
+        _render_restore_result(restore_result)
+
+    if new_files:
+        st.info("新增资料文件已接收。Diff Engine 将在下一开发阶段接入。")
 
     render_section_title("预计分析结果")
     render_metric_cards(

@@ -123,7 +123,7 @@ Prepare the frozen Generate module for Streamlit Community Cloud deployment with
 
 ## V0.8.0 Milestone 1 - Architecture and UI Foundation
 
-Status: In development
+Status: Completed
 
 Goal:
 
@@ -145,6 +145,30 @@ Out of scope:
 - Merge.
 - Update-mode Excel export.
 - Embeddings, vector database, account system, or task history.
+
+## V0.8.0 Milestone 2 - Knowledge Restore and Parser Foundation
+
+Status: In development
+
+Goal:
+
+Give Update mode a unified historical knowledge restore layer so the future Diff Engine receives `KnowledgeItem[]` only.
+
+Scope:
+
+- Standard AutoRAG Excel export -> KnowledgeItem.
+- Word history knowledge -> existing Parser -> existing Fact Agent -> existing RAG Agent -> KnowledgeItem.
+- RAG JSON -> KnowledgeItem adapter.
+- Restore Manager for file-type dispatch.
+- Update page restore statistics and preview.
+
+Out of scope:
+
+- Diff Engine.
+- Embedding or similarity matching.
+- Review decisions.
+- Merge.
+- Update-mode Excel export.
 
 Completed:
 

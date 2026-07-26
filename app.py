@@ -21,6 +21,7 @@ def initialize_session_state() -> None:
         "generate_result": None,
         "update_stage": "idle",
         "update_diff_result": None,
+        "update_restore_result": None,
     }
 
     for key, value in defaults.items():
