@@ -4,7 +4,7 @@ Version: V0.8.0-dev
 
 Status: In Progress
 
-Milestone: V0.8.0 Milestone 2 - Knowledge Restore & Parser Foundation
+Milestone: V0.8.0 Milestone 3A - Rule-based Knowledge Change Detection
 
 ## Completed In V0.6
 
@@ -38,7 +38,7 @@ The system can:
 
 ## Current Task
 
-V0.8.0 Milestone 2: Knowledge Restore and Parser Foundation.
+V0.8.0 Milestone 3A: Rule-based Knowledge Change Detection.
 
 Completed in Milestone 1:
 
@@ -49,13 +49,23 @@ Completed in Milestone 1:
 - Add shared UI styles and components.
 - Add initial Knowledge Object definitions for future adapters.
 
-In progress:
+Completed in Milestone 2:
 
 - Restore standard AutoRAG Excel exports into `KnowledgeItem[]`.
 - Restore Word history knowledge by reusing existing Parser -> Fact Agent -> RAG Agent.
 - Convert generated RAG JSON into `KnowledgeItem[]` through a Knowledge Adapter.
 - Add Restore Manager as the Update mode entrypoint.
 - Show restored knowledge statistics and preview on the Update page.
+
+In progress:
+
+- Compare Old and New `KnowledgeItem[]` through a rule-based Diff Engine.
+- Automatically detect the current update scope from new knowledge.
+- Build limited candidates without full Old x New comparison.
+- Match knowledge conservatively with normalized-question and structured rules.
+- Detect added, updated, unchanged, and review-required knowledge.
+- Treat possible deprecation as a review reason, not an automatic deletion state.
+- Show real Diff statistics and result tabs on the Update page.
 
 Generate freeze rules:
 
@@ -67,13 +77,13 @@ Generate freeze rules:
 
 ## Next Task
 
-V0.8 Milestone 3: Diff Engine.
+V0.8 Milestone 3C: LLM Semantic Judge strategy, based on real rule-diff bad cases.
 
 ## Future Tasks
 
 1. Standard Excel to Knowledge Object.
 2. Word material to Facts/RAG/Knowledge Object.
-3. Knowledge Diff with KEEP/ADD/MODIFY/REMOVE_CANDIDATE.
+3. LLM Semantic Judge for ambiguous or high-risk cases.
 4. Review confirmation workflow.
 5. Merge and Update-mode export.
 6. QC-assisted fixing with user accept/ignore choices.

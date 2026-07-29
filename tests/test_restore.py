@@ -96,9 +96,9 @@ def test_restore_word_reuses_existing_parser_and_agents(monkeypatch):
             ]
         }
 
-    monkeypatch.setattr("knowledge.word_restore.parse_file", fake_parse)
-    monkeypatch.setattr("knowledge.word_restore.extract_facts", fake_extract)
-    monkeypatch.setattr("knowledge.word_restore.generate_rag", fake_rag)
+    monkeypatch.setattr("knowledge.word_restore.parse_document", fake_parse)
+    monkeypatch.setattr("knowledge.word_restore.extract_material_facts", fake_extract)
+    monkeypatch.setattr("knowledge.word_restore.generate_material_rag", fake_rag)
 
     items = restore_word(SimpleNamespace(name="产品FAQ.docx"))
 

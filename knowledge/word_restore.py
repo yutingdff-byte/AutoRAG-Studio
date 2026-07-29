@@ -5,12 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agents.fact_agent import extract_facts
-from agents.rag_agent import generate_rag
 from knowledge.adapter import rag_to_knowledge
 from knowledge.excel_restore import KnowledgeRestoreError
 from knowledge.models import KnowledgeItem
-from parser.parser_factory import parse_file
 
 
 def get_source_name(file: Any) -> str:
@@ -22,13 +19,31 @@ def get_source_name(file: Any) -> str:
     return "历史知识.docx"
 
 
+def parse_document(file: Any) -> str:
+    from parser.parser_factory import parse_file
+
+    return parse_file(file)
+
+
+def extract_material_facts(material: str):
+    from agents.fact_agent import extract_facts
+
+    return extract_facts(material)
+
+
+def generate_material_rag(facts):
+    from agents.rag_agent import generate_rag
+
+    return generate_rag(facts)
+
+
 def restore_word(file: Any) -> list[KnowledgeItem]:
     """Restore Word material by reusing Parser -> Fact Agent -> RAG Agent."""
 
     source_name = get_source_name(file)
 
     try:
-        material = parse_file(file).strip()
+        material = parse_document(file).strip()
     except Exception as exc:
         raise KnowledgeRestoreError(
             f"知识恢复失败：{source_name}。请检查文件格式。"
@@ -40,11 +55,11 @@ def restore_word(file: Any) -> list[KnowledgeItem]:
         )
 
     try:
-        facts = extract_facts(material)
+        facts = extract_material_facts(material)
         if not facts:
             raise ValueError("Fact Agent未返回有效结果")
 
-        rag = generate_rag(facts)
+        rag = generate_material_rag(facts)
         if not rag:
             raise ValueError("RAG Agent未返回有效结果")
 

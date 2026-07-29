@@ -148,7 +148,7 @@ Out of scope:
 
 ## V0.8.0 Milestone 2 - Knowledge Restore and Parser Foundation
 
-Status: In development
+Status: Completed
 
 Goal:
 
@@ -169,6 +169,32 @@ Out of scope:
 - Review decisions.
 - Merge.
 - Update-mode Excel export.
+
+## V0.8.0 Milestone 3A - Rule-based Knowledge Change Detection
+
+Status: In development
+
+Goal:
+
+Compare old and new `KnowledgeItem[]` with conservative rule-based matching and change detection.
+
+Scope:
+
+- Automatic update scope detection.
+- Candidate building without full Old x New comparison.
+- Normalized-question and structured rule matching.
+- Change detection for format-only unchanged answers, price changes, number changes, answer changes, and explicit possible deprecation evidence.
+- Four page statuses: added, updated, unchanged, and review required.
+- Update page Diff statistics and preview tabs.
+
+Out of scope:
+
+- LLM Semantic Judge.
+- Embedding and vector database.
+- Review actions.
+- Merge Engine.
+- Update-mode Excel export.
+- Automatic deletion or overwrite of old knowledge.
 
 Completed:
 

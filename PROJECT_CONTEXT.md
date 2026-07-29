@@ -2,7 +2,7 @@
 
 Version: V0.8.0-dev
 
-Status: V0.8 Milestone 2 - Knowledge Restore and Parser Foundation
+Status: V0.8 Milestone 3A - Rule-based Knowledge Change Detection
 
 Last Update: 2026-07-26
 
@@ -44,7 +44,8 @@ Main modules:
 - `pages/`: Home, Generate, and Update page renderers
 - `ui/`: shared Streamlit styles and reusable UI components
 - `knowledge/`: Knowledge Object definitions, restore adapters, Excel restore, Word restore, and restore manager
-- `diff/`, `review/`, `merge/`, `exporter/`: V0.8 workflow placeholders
+- `diff/`: rule-based knowledge matching, change detection, update scope detection, and Diff result models
+- `review/`, `merge/`, `exporter/`: V0.8 workflow placeholders
 - `prompts/`: Step1, Step2, Step3 prompt rules
 - `schemas/`: export schema reference
 
@@ -69,6 +70,28 @@ Word
 ```
 
 Milestone 2 still does not implement Diff, Review decisions, Merge, or Update-mode Excel export.
+
+Milestone 3A Update diff flow:
+
+```text
+Old KnowledgeItem[]
++
+New KnowledgeItem[]
+-> Scope Detection
+-> Candidate Building
+-> Rule Match
+-> Change Detection
+-> DiffResult[]
+```
+
+Diff page states:
+
+- Added
+- Updated
+- Unchanged
+- Review Required
+
+Possible deprecation is a `ReviewReason`, not a deletion state. Old knowledge remains preserved unless a later human Review/Merge step decides otherwise.
 
 ## 3. Current Data Design
 

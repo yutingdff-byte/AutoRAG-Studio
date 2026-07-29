@@ -1,10 +1,37 @@
 # AutoRAG-Studio Changelog
 
+## V0.8.0-dev - Rule-based Knowledge Change Detection
+
+Date: 2026-07-29
+
+Status: In development
+
+### Added
+
+- Added rule-based Diff data models, including `ChangeType`, `MatchMethod`, `ReviewReason`, `MatchResult`, `DiffResult`, and `DiffRunResult`.
+- Added Knowledge normalizer for question, answer, number, topic, and signature normalization.
+- Added automatic update scope detection from new `KnowledgeItem[]`.
+- Added candidate builder with normalized-question, model, category, knowledge-type, and signature indexes.
+- Added conservative rule matcher with normalized-question and structured matching.
+- Added change detector for unchanged answers, price or number changes, answer changes, and possible deprecation evidence.
+- Added unified Diff Engine entrypoint: `compare(old_items, new_items)`.
+- Added Update page generation of new knowledge through the existing Parser -> Fact Agent -> RAG Agent -> Knowledge Adapter chain.
+- Added Update page Diff statistics and result tabs for all, added, updated, unchanged, and review-required items.
+- Added Diff unit tests for normalizer, scope detector, candidate builder, matcher, change detector, and engine scenarios.
+
+### Notes
+
+- First-level page statuses are limited to added, updated, unchanged, and review required.
+- Possible deprecation is a review reason, not an automatic deletion state.
+- Old knowledge is kept by default. New material not mentioning old knowledge does not mark it invalid.
+- LLM Semantic Judge, Review actions, Merge, and Update Excel Export remain out of scope.
+- Generate business logic remains frozen.
+
 ## V0.8.0-dev - Knowledge Restore and Parser Foundation
 
 Date: 2026-07-26
 
-Status: In development
+Status: Completed
 
 ### Added
 
