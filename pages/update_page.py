@@ -48,23 +48,100 @@ def _history_files_cache_key(files, deep_restore: bool = False) -> str:
     return "|".join(get_restore_cache_key(file, deep_restore=deep_restore) for file in files)
 
 
+def _restore_stage_label(stage: str) -> str:
+    stage = str(stage or "")
+    if stage in {"Format Detector"}:
+        return "识别历史知识格式"
+    if stage in {"Standard Restore", "直接恢复Knowledge", "识别现成问答"}:
+        return "恢复历史知识"
+    if stage in {"Parser", "读取文档", "KnowledgeItem", "合并去重", "完成"}:
+        return "整理恢复结果"
+    if stage in {"深度提取Facts", "生成RAG", "Restore"}:
+        return "AI 智能恢复"
+    return stage or "恢复历史知识"
+
+
+def _restore_message_text(stage: str, status: str, message: str) -> str:
+    stage_label = _restore_stage_label(stage)
+    text = str(message or "")
+
+    replacements = {
+        "已识别为系统标准历史知识格式": "已识别系统标准知识格式",
+        "正在快速恢复，无需模型处理": "正在恢复历史知识",
+        "调用现有Fact Agent恢复事实": "正在使用 AI 智能恢复复杂文档",
+        "调用现有RAG Agent生成知识": "正在使用 AI 整理历史知识",
+        "Fact Agent": "AI 智能恢复",
+        "RAG Agent": "AI 智能恢复",
+        "Fact/RAG": "AI 智能恢复",
+        "Parser": "文件解析",
+        "Standard Restore": "历史知识恢复",
+        "Fast Restore": "历史知识恢复",
+        "Deep Restore": "AI 智能恢复",
+        "LLM调用 0": "",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    if "qa_v1" in text or "intent_v1" in text or "严格解析" in text:
+        return "已完成结构校验"
+    if "LLM调用" in text:
+        text = text.split("，LLM调用", 1)[0].strip()
+    text = text.replace("候选记录", "识别记录")
+
+    if "候选记录" in text and "成功" in text:
+        return text
+    if status == "缓存命中":
+        return "同一批历史文件已恢复，直接复用结果"
+    if stage_label == "识别历史知识格式" and status == "成功":
+        return "已识别系统标准知识格式"
+    if stage_label == "AI 智能恢复" and status in {"开始", "日志"}:
+        return text or "正在使用 AI 智能恢复复杂文档"
+    return text or status
+
+
+def _friendly_restore_log_entry(entry: str) -> str:
+    parts = str(entry or "").split("｜")
+    if len(parts) >= 4:
+        stage = parts[1]
+        status = parts[2]
+        message = "｜".join(parts[3:])
+        return f"{_restore_stage_label(stage)}｜{status}｜{_restore_message_text(stage, status, message)}"
+    if len(parts) >= 3:
+        stage = parts[0]
+        status = parts[1]
+        message = "｜".join(parts[2:])
+        return f"{_restore_stage_label(stage)}｜{status}｜{_restore_message_text(stage, status, message)}"
+    return str(entry or "")
+
+
+def _should_offer_ai_restore(result: RestoreResult) -> bool:
+    for file_result in result.files:
+        if not file_result.success:
+            continue
+        for entry in file_result.logs:
+            if "暂缓" in entry and ("深度" in entry or "剩余" in entry):
+                return True
+    return False
+
+
 def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
     if not files:
         st.session_state.update_restore_result = None
         st.session_state.update_restore_logs = []
         st.session_state.update_restore_cache_key = ""
         st.session_state.update_restore_running = False
+        st.session_state.update_restore_ai_mode = False
         return RestoreResult()
 
     cache_key = _history_files_cache_key(files, deep_restore=deep_restore)
     restore_cache = st.session_state.setdefault("update_restore_cache", {})
     cached_result = restore_cache.get(cache_key)
     if cached_result is not None:
-        logs = [f"Restore｜缓存命中｜同一批历史文件已恢复，直接复用结果｜0.00s"]
+        logs = [f"恢复历史知识｜缓存命中｜同一批历史文件已恢复，直接复用结果｜0.00s"]
         st.session_state.update_restore_result = cached_result
         st.session_state.update_restore_logs = logs
         st.session_state.update_restore_cache_key = cache_key
-        st.info(logs[0])
+        st.info("同一批历史文件已恢复，直接复用结果。")
         return cached_result
 
     log_box = st.empty()
@@ -73,13 +150,14 @@ def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
     def update_progress(file_name: str, stage: str, status: str, message: str) -> None:
         logs.append(f"{file_name}｜{stage}｜{status}｜{message}")
         st.session_state.update_restore_logs = logs
-        log_box.info("\n".join(logs[-8:]))
+        friendly_logs = [_friendly_restore_log_entry(entry) for entry in logs[-5:]]
+        log_box.info("\n".join(friendly_logs))
 
     st.session_state.update_restore_running = True
     st.session_state.update_restore_cache_key = cache_key
 
     try:
-        with st.spinner("正在恢复历史知识..."):
+        with st.spinner("正在识别历史知识格式..."):
             result = restore(
                 files,
                 progress_callback=update_progress,
@@ -113,17 +191,15 @@ def _render_restore_result(result: RestoreResult) -> None:
     for file_result in result.files:
         report = file_result.report or {}
         if report.get("format_id") == "SYSTEM_STANDARD_WORD_V1":
-            st.info(
-                "已识别为系统标准历史知识格式，已快速恢复，无需模型处理。"
-                f"候选记录 {report.get('candidate_records', 0)} 条，"
-                f"成功 {report.get('success_count', 0)} 条，"
-                f"失败 {report.get('failed_count', 0)} 条，"
-                f"LLM 调用 {report.get('llm_calls', 0)} 次。"
-            )
+            failed_count = report.get("failed_count", 0) + report.get("skipped_count", 0)
+            message = "✓ 已识别系统标准知识格式，系统已自动完成恢复。"
+            if failed_count:
+                message += f" 有 {failed_count} 条记录需要进一步查看。"
+            st.info(message)
 
         if file_result.success:
             st.success(
-                f"{file_result.file_name}：恢复 {len(file_result.items)} 条知识，耗时 {file_result.elapsed_seconds:.2f}s"
+                f"{file_result.file_name}：历史知识恢复完成，恢复 {len(file_result.items)} 条，耗时 {file_result.elapsed_seconds:.2f}s"
             )
         else:
             st.error(
@@ -131,13 +207,13 @@ def _render_restore_result(result: RestoreResult) -> None:
             )
 
         if file_result.logs:
-            with st.expander(f"{file_result.file_name} 恢复日志", expanded=not file_result.success):
+            with st.expander("查看恢复日志", expanded=False):
                 for entry in file_result.logs:
-                    st.caption(entry)
+                    st.caption(_friendly_restore_log_entry(entry))
 
         failures = report.get("failures") or []
         if failures:
-            with st.expander(f"{file_result.file_name} 标准恢复失败记录", expanded=False):
+            with st.expander("查看未恢复记录", expanded=False):
                 st.dataframe(
                     [
                         {
@@ -326,7 +402,7 @@ def render_update_page() -> None:
     with old_col:
         render_section_title("历史知识")
         st.caption(
-            "支持导入已有 Excel 或 Word 知识资料。Excel 将按标准字段读取；Word 将通过现有 Parser → Facts → RAG 流程恢复为统一知识对象。"
+            "支持导入已有 Excel 或 Word 知识资料。系统会自动识别知识格式，并恢复为统一知识对象。"
         )
         old_files = st.file_uploader(
             "上传历史知识文件",
@@ -337,17 +413,7 @@ def render_update_page() -> None:
         _render_uploaded_files(old_files, "尚未上传历史知识文件。")
 
         restore_result = st.session_state.get("update_restore_result") or RestoreResult()
-        deep_restore_history = False
-        if old_files:
-            has_word_file = any(str(getattr(file, "name", "")).lower().endswith(".docx") for file in old_files)
-            if has_word_file:
-                deep_restore_history = st.checkbox(
-                    "深度恢复未识别内容（会调用Fact/RAG，耗时较长）",
-                    value=False,
-                    help="默认优先识别Word中的表格、问答和标题正文。只有勾选后，才会对未识别剩余文本继续调用现有Fact/RAG。",
-                    key="update_deep_restore_history",
-                )
-                st.caption("建议先使用快速恢复；如果恢复结果明显缺少内容，再开启深度恢复。")
+        deep_restore_history = bool(st.session_state.get("update_restore_ai_mode", False))
 
         current_cache_key = _history_files_cache_key(old_files, deep_restore=deep_restore_history)
         if (
@@ -361,7 +427,8 @@ def render_update_page() -> None:
 
         if old_files and st.button("开始恢复历史知识", use_container_width=True):
             try:
-                restore_result = _restore_history_files(old_files, deep_restore=deep_restore_history)
+                st.session_state.update_restore_ai_mode = False
+                restore_result = _restore_history_files(old_files, deep_restore=False)
             except Exception as exc:
                 st.session_state.update_restore_result = RestoreResult()
                 st.session_state.update_restore_logs = [
@@ -382,6 +449,28 @@ def render_update_page() -> None:
 
     if old_files and restore_result.files:
         _render_restore_result(restore_result)
+        if _should_offer_ai_restore(restore_result):
+            st.warning(
+                "检测到复杂文档\n\n"
+                "当前文档不是系统标准知识格式，仍有部分内容可能需要智能分析。"
+                "是否使用 AI 智能恢复继续补充？预计需要几分钟。"
+            )
+            ai_col, cancel_col = st.columns([1, 1])
+            with ai_col:
+                if st.button("开始 AI 恢复", use_container_width=True):
+                    try:
+                        st.session_state.update_restore_ai_mode = True
+                        restore_result = _restore_history_files(old_files, deep_restore=True)
+                        st.rerun()
+                    except Exception as exc:
+                        st.session_state.update_restore_result = RestoreResult()
+                        st.session_state.update_restore_logs = [
+                            f"AI 智能恢复｜失败｜{exc}"
+                        ]
+                        st.error(f"AI 智能恢复失败：{exc}")
+            with cancel_col:
+                if st.button("暂时仅使用已恢复知识", use_container_width=True):
+                    st.info("已保留当前恢复结果，可继续上传新增资料。")
 
     if new_files:
         if st.button("生成新增知识", use_container_width=True):
