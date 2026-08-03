@@ -1252,11 +1252,45 @@ def render_generate_page() -> None:
 
                 if step == "Step1":
 
+                    if not isinstance(
+                        data,
+                        dict
+                    ):
+
+                        logs.append(
+                            "Step1 Facts事实抽取失败：未返回有效结果"
+                        )
+
+                        status_box.markdown(
+                            "\n\n".join(
+                                logs
+                            )
+                        )
+
+                        return
+
                     logs.append(
                         f"Step1 Facts事实抽取完成：{len(data.get('facts', []))} 条"
                     )
 
                 elif step == "Step2":
+
+                    if not isinstance(
+                        data,
+                        dict
+                    ):
+
+                        logs.append(
+                            "Step2 RAG知识生成失败：未返回有效结果"
+                        )
+
+                        status_box.markdown(
+                            "\n\n".join(
+                                logs
+                            )
+                        )
+
+                        return
 
                     logs.append(
                         f"Step2 RAG知识生成完成：{len(data.get('rag_knowledge', []))} 条"
@@ -1278,15 +1312,52 @@ def render_generate_page() -> None:
                 "AI正在生成知识库..."
             ):
 
-                result = run_pipeline(
-                    material,
-                    progress_callback=update_progress,
-                    source_files=[
-                        file.name
-                        for file in uploaded_files
-                    ],
-                    image_parse_stats=image_parse_stats
-                )
+                try:
+
+                    result = run_pipeline(
+                        material,
+                        progress_callback=update_progress,
+                        source_files=[
+                            file.name
+                            for file in uploaded_files
+                        ],
+                        image_parse_stats=image_parse_stats
+                    )
+
+                except Exception as exc:
+
+                    error_text = str(
+                        exc
+                    )
+
+                    if "RAG" in error_text:
+
+                        user_error = "RAG 生成失败，模型服务暂时不可用，请稍后重试。"
+
+                    else:
+
+                        user_error = "Facts 提取失败，模型服务暂时不可用，请稍后重试。"
+
+                    st.error(
+                        user_error
+                    )
+
+                    with st.expander(
+                        "查看生成日志",
+                        expanded=False
+                    ):
+
+                        for entry in logs:
+
+                            st.caption(
+                                entry
+                            )
+
+                        st.caption(
+                            error_text
+                        )
+
+                    st.stop()
 
             st.success(
                 "RAG生成完成"

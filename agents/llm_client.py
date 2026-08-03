@@ -43,19 +43,66 @@ def get_client():
     )
 
 
+def describe_llm_exception(exc, model):
+
+    cause = getattr(
+        exc,
+        "__cause__",
+        None
+    )
+
+    request = getattr(
+        exc,
+        "request",
+        None
+    )
+
+    return {
+        "exception_class": f"{exc.__class__.__module__}.{exc.__class__.__name__}",
+        "exception_message": str(
+            exc
+        ),
+        "cause_class": (
+            f"{cause.__class__.__module__}.{cause.__class__.__name__}"
+            if cause
+            else ""
+        ),
+        "cause_message": str(
+            cause
+        ) if cause else "",
+        "http_status": getattr(
+            exc,
+            "status_code",
+            ""
+        ),
+        "request_endpoint": str(
+            getattr(
+                request,
+                "url",
+                ""
+            )
+        ) if request else "",
+        "model": model,
+        "timeout": str(
+            get_llm_timeout()
+        )
+    }
+
+
 def call_llm(system_prompt, user_content):
 
     try:
 
         client = get_client()
+        model = get_config(
+            "DEEPSEEK_MODEL",
+            "deepseek-v4-flash"
+        )
 
         response = client.chat.completions.create(
 
             # 根据你的DeepSeek账号实际可用模型调整
-            model=get_config(
-                "DEEPSEEK_MODEL",
-                "deepseek-v4-flash"
-            ),
+            model=model,
 
             messages=[
                 {
@@ -113,7 +160,17 @@ def call_llm(system_prompt, user_content):
 
         print("======================")
         print("调用DeepSeek失败")
-        print(e)
+        diagnostics = describe_llm_exception(
+            e,
+            get_config(
+                "DEEPSEEK_MODEL",
+                "deepseek-v4-flash"
+            )
+        )
+        for key, value in diagnostics.items():
+            print(
+                f"{key}: {value}"
+            )
         print("======================")
 
 

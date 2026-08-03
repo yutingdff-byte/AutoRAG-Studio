@@ -12,6 +12,64 @@ from agents.qc_agent import quality_check
 from generator.excel_generator import generate_excel
 
 
+class PipelineStepError(RuntimeError):
+
+    pass
+
+
+def count_facts_result(facts):
+
+    if isinstance(
+        facts,
+        dict
+    ):
+
+        values = facts.get(
+            "facts",
+            []
+        )
+
+        return len(
+            values
+        ) if isinstance(
+            values,
+            list
+        ) else 0
+
+    if isinstance(
+        facts,
+        list
+    ):
+
+        return len(
+            facts
+        )
+
+    return 0
+
+
+def count_rag_result(rag):
+
+    if isinstance(
+        rag,
+        dict
+    ):
+
+        values = rag.get(
+            "rag_knowledge",
+            []
+        )
+
+        return len(
+            values
+        ) if isinstance(
+            values,
+            list
+        ) else 0
+
+    return 0
+
+
 
 # =========================
 # JSON保存工具
@@ -180,6 +238,14 @@ def run_pipeline(
         facts
     )
 
+    if not facts or count_facts_result(
+        facts
+    ) == 0:
+
+        raise PipelineStepError(
+            "Facts 提取失败，模型服务暂时不可用或未返回有效事实，请稍后重试。"
+        )
+
 
     # 通知页面
 
@@ -212,6 +278,14 @@ def run_pipeline(
         "rag.json",
         rag
     )
+
+    if not rag or count_rag_result(
+        rag
+    ) == 0:
+
+        raise PipelineStepError(
+            "RAG 生成失败，模型服务暂时不可用或未返回有效知识，请稍后重试。"
+        )
 
 
     # 通知页面
