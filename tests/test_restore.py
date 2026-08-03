@@ -63,6 +63,7 @@ def test_restore_excel_rejects_non_standard_columns():
 
 def test_restore_word_reuses_existing_parser_and_agents(monkeypatch):
     calls = []
+    logs = []
 
     def fake_parse(file):
         calls.append(("parse", file.name))
@@ -100,7 +101,10 @@ def test_restore_word_reuses_existing_parser_and_agents(monkeypatch):
     monkeypatch.setattr("knowledge.word_restore.extract_material_facts", fake_extract)
     monkeypatch.setattr("knowledge.word_restore.generate_material_rag", fake_rag)
 
-    items = restore_word(SimpleNamespace(name="产品FAQ.docx"))
+    items = restore_word(
+        SimpleNamespace(name="产品FAQ.docx"),
+        progress_callback=lambda stage, status, message: logs.append((stage, status, message)),
+    )
 
     assert calls == [
         ("parse", "产品FAQ.docx"),
@@ -110,6 +114,16 @@ def test_restore_word_reuses_existing_parser_and_agents(monkeypatch):
     assert len(items) == 1
     assert items[0].source_files == ["产品FAQ.docx"]
     assert items[0].fact_refs == ["F001"]
+    assert [entry[0] for entry in logs] == [
+        "Parser",
+        "Parser",
+        "Facts",
+        "Facts",
+        "RAG",
+        "RAG",
+        "Adapter",
+        "KnowledgeItem",
+    ]
 
 
 def test_restore_manager_combines_success_and_failure():
@@ -134,3 +148,24 @@ def test_restore_manager_combines_success_and_failure():
     assert len(result.files) == 2
     assert result.files[0].success
     assert not result.files[1].success
+    assert any("Restore" in entry for entry in result.files[1].logs)
+
+
+def test_restore_manager_reports_word_stage_failure(monkeypatch):
+    def fake_parse(file):
+        return "历史Word资料"
+
+    def fake_extract(material):
+        return None
+
+    monkeypatch.setattr("knowledge.word_restore.parse_document", fake_parse)
+    monkeypatch.setattr("knowledge.word_restore.extract_material_facts", fake_extract)
+
+    result = restore(SimpleNamespace(name="产品FAQ.docx"))
+
+    assert result.restored_count == 0
+    assert not result.files[0].success
+    assert "知识恢复失败" in result.files[0].error
+    assert any("Parser｜成功" in entry for entry in result.files[0].logs)
+    assert any("Facts｜开始" in entry for entry in result.files[0].logs)
+    assert any("Restore｜失败" in entry for entry in result.files[0].logs)

@@ -45,12 +45,22 @@ def _render_uploaded_files(files, empty_text: str) -> None:
 def _restore_history_files(files) -> RestoreResult:
     if not files:
         st.session_state.update_restore_result = None
+        st.session_state.update_restore_logs = []
         return RestoreResult()
 
+    log_box = st.empty()
+    logs: list[str] = []
+
+    def update_progress(file_name: str, stage: str, status: str, message: str) -> None:
+        logs.append(f"{file_name}｜{stage}｜{status}｜{message}")
+        st.session_state.update_restore_logs = logs
+        log_box.info("\n".join(logs[-8:]))
+
     with st.spinner("正在恢复历史知识..."):
-        result = restore(files)
+        result = restore(files, progress_callback=update_progress)
 
     st.session_state.update_restore_result = result
+    st.session_state.update_restore_logs = logs
     return result
 
 
@@ -74,6 +84,11 @@ def _render_restore_result(result: RestoreResult) -> None:
             st.error(
                 f"{file_result.file_name}：{file_result.error or '知识恢复失败，请检查文件格式。'}"
             )
+
+        if file_result.logs:
+            with st.expander(f"{file_result.file_name} 恢复日志", expanded=not file_result.success):
+                for entry in file_result.logs:
+                    st.caption(entry)
 
     if result.items:
         with st.expander("恢复结果预览", expanded=True):
@@ -259,7 +274,17 @@ def render_update_page() -> None:
         )
         _render_uploaded_files(old_files, "尚未上传历史知识文件。")
 
-        restore_result = _restore_history_files(old_files)
+        restore_result = st.session_state.get("update_restore_result") or RestoreResult()
+
+        if old_files and st.button("开始恢复历史知识", use_container_width=True):
+            try:
+                restore_result = _restore_history_files(old_files)
+            except Exception as exc:
+                st.session_state.update_restore_result = RestoreResult()
+                st.session_state.update_restore_logs = [
+                    f"Restore｜失败｜{exc}"
+                ]
+                st.error(f"知识恢复失败：{exc}")
 
     with new_col:
         render_section_title("新增资料")
@@ -272,7 +297,7 @@ def render_update_page() -> None:
         )
         _render_uploaded_files(new_files, "尚未上传新增资料。")
 
-    if old_files:
+    if old_files and restore_result.files:
         _render_restore_result(restore_result)
 
     if new_files:
