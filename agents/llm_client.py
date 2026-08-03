@@ -1,6 +1,31 @@
 from openai import OpenAI
+from httpx import Timeout
 
 from utils.config import get_config, require_config
+
+
+def get_llm_timeout():
+
+    connect_timeout = float(
+        get_config(
+            "LLM_CONNECT_TIMEOUT_SECONDS",
+            "10"
+        )
+    )
+
+    read_timeout = float(
+        get_config(
+            "LLM_READ_TIMEOUT_SECONDS",
+            "300"
+        )
+    )
+
+    return Timeout(
+        connect=connect_timeout,
+        read=read_timeout,
+        write=60.0,
+        pool=60.0
+    )
 
 
 def get_client():
@@ -13,7 +38,8 @@ def get_client():
         base_url=get_config(
             "DEEPSEEK_BASE_URL",
             "https://api.deepseek.com"
-        )
+        ),
+        timeout=get_llm_timeout()
     )
 
 

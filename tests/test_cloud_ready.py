@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -19,6 +20,29 @@ def test_config_reads_environment(monkeypatch):
     assert get_config(
         "AUTORAG_TEST_VALUE"
     ) == "ok"
+
+
+def test_llm_timeout_reads_environment(monkeypatch):
+
+    monkeypatch.setenv(
+        "LLM_CONNECT_TIMEOUT_SECONDS",
+        "3"
+    )
+    monkeypatch.setenv(
+        "LLM_READ_TIMEOUT_SECONDS",
+        "30"
+    )
+
+    sys.modules.pop(
+        "agents.llm_client",
+        None
+    )
+    from agents.llm_client import get_llm_timeout
+
+    timeout = get_llm_timeout()
+
+    assert timeout.connect == 3
+    assert timeout.read == 30
 
 
 def test_excel_quality_gate_keeps_columns_and_blocks_missing():

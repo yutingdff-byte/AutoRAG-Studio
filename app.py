@@ -23,6 +23,9 @@ def initialize_session_state() -> None:
         "update_diff_result": None,
         "update_restore_result": None,
         "update_restore_logs": [],
+        "update_restore_cache": {},
+        "update_restore_cache_key": "",
+        "update_restore_running": False,
         "update_new_knowledge": [],
         "update_new_errors": [],
     }

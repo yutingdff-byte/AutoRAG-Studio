@@ -13,6 +13,7 @@ fake_llm_client = types.ModuleType(
     "agents.llm_client"
 )
 fake_llm_client.call_llm = lambda *args, **kwargs: ""
+fake_llm_client.get_llm_timeout = lambda: None
 sys.modules[
     "agents.llm_client"
 ] = fake_llm_client
