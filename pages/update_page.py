@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stdout
+from io import StringIO
+
 import streamlit as st
 
 from knowledge.adapter import knowledge_to_preview_rows
@@ -241,14 +244,54 @@ def _build_material_block(file_name: str, content: str) -> str:
     return f"===== 文件：{file_name} =====\n{content}"
 
 
+def _capture_stage_output(func, *args):
+    buffer = StringIO()
+    with redirect_stdout(buffer):
+        result = func(*args)
+    return result, buffer.getvalue()
+
+
+def _summarize_stage_output(output: str) -> str:
+    lines = [
+        line.strip()
+        for line in str(output or "").splitlines()
+        if line.strip()
+    ]
+    return "\n".join(lines[-12:])[:1500]
+
+
+def _fact_count(facts) -> int:
+    if isinstance(facts, dict):
+        values = facts.get("facts", [])
+        return len(values) if isinstance(values, list) else 0
+    if isinstance(facts, list):
+        return len(facts)
+    return 0
+
+
+def _rag_count(rag) -> int:
+    if isinstance(rag, dict):
+        values = rag.get("rag_knowledge", [])
+        return len(values) if isinstance(values, list) else 0
+    return 0
+
+
+def _append_new_log(logs: list[str], stage: str, status: str, message: str) -> None:
+    logs.append(f"{stage}｜{status}｜{message}")
+    st.session_state.update_new_logs = logs
+
+
 def _generate_new_knowledge(files):
     if not files:
         st.session_state.update_new_knowledge = []
+        st.session_state.update_new_errors = []
+        st.session_state.update_new_logs = []
         return []
 
     materials = []
     source_files = []
     errors = []
+    logs: list[str] = []
 
     with st.spinner("正在解析新增资料并生成新知识..."):
         from parser.parser_factory import parse_file
@@ -257,26 +300,80 @@ def _generate_new_knowledge(files):
 
         for file in files:
             try:
+                _append_new_log(logs, "Parser", "开始", f"解析 {file.name}")
                 content = parse_file(file).strip()
                 if not content:
                     raise ValueError("解析结果为空")
                 materials.append(_build_material_block(file.name, content))
                 source_files.append(file.name)
+                _append_new_log(logs, "Parser", "成功", f"{file.name} 解析出 {len(content)} 个字符")
             except Exception as exc:
-                errors.append(f"{file.name}：{exc}")
+                error = f"{file.name}：{exc}"
+                errors.append(error)
+                _append_new_log(logs, "Parser", "失败", error)
 
         if not materials:
             st.session_state.update_new_knowledge = []
             st.session_state.update_new_errors = errors
+            st.session_state.update_new_logs = logs
             return []
 
         material = "\n\n".join(materials)
-        facts = extract_facts(material)
-        rag = generate_rag(facts)
+
+        try:
+            _append_new_log(logs, "Facts", "开始", "从新增资料中提取事实")
+            facts, facts_stdout = _capture_stage_output(extract_facts, material)
+            facts_output = _summarize_stage_output(facts_stdout)
+            if facts_output:
+                _append_new_log(logs, "Facts", "日志", facts_output)
+        except Exception as exc:
+            facts = None
+            _append_new_log(logs, "Facts", "异常", str(exc))
+
+        fact_count = _fact_count(facts)
+        if not facts or fact_count == 0:
+            message = "新增资料未能生成有效 Facts，请检查文件内容或模型调用后重试。"
+            errors.append(message)
+            _append_new_log(logs, "Facts", "失败", message)
+            st.session_state.update_new_knowledge = []
+            st.session_state.update_new_errors = errors
+            st.session_state.update_new_logs = logs
+            return []
+
+        _append_new_log(logs, "Facts", "成功", f"提取 {fact_count} 条事实")
+
+        try:
+            _append_new_log(logs, "RAG", "开始", "根据事实生成新增知识")
+            rag, rag_stdout = _capture_stage_output(generate_rag, facts)
+            rag_output = _summarize_stage_output(rag_stdout)
+            if rag_output:
+                _append_new_log(logs, "RAG", "日志", rag_output)
+        except Exception as exc:
+            message = f"新增资料 RAG 生成失败：{exc}"
+            errors.append(message)
+            _append_new_log(logs, "RAG", "异常", message)
+            st.session_state.update_new_knowledge = []
+            st.session_state.update_new_errors = errors
+            st.session_state.update_new_logs = logs
+            return []
+
+        rag_count = _rag_count(rag)
+        if not rag or rag_count == 0:
+            message = "新增资料未能生成有效 RAG 知识，请检查文件内容或模型调用后重试。"
+            errors.append(message)
+            _append_new_log(logs, "RAG", "失败", message)
+            st.session_state.update_new_knowledge = []
+            st.session_state.update_new_errors = errors
+            st.session_state.update_new_logs = logs
+            return []
+
+        _append_new_log(logs, "RAG", "成功", f"生成 {rag_count} 条知识")
         items = rag_to_knowledge(rag, source_file="、".join(source_files))
+        _append_new_log(logs, "KnowledgeItem", "成功", f"转换 {len(items)} 条统一知识")
 
     st.session_state.update_new_knowledge = items
     st.session_state.update_new_errors = errors
+    st.session_state.update_new_logs = logs
     return items
 
 
@@ -286,6 +383,12 @@ def _render_new_knowledge_result(items, errors) -> None:
     if errors:
         for error in errors:
             st.error(f"新增资料处理失败：{error}")
+
+    logs = st.session_state.get("update_new_logs", [])
+    if logs:
+        with st.expander("查看新增资料处理日志", expanded=False):
+            for entry in logs:
+                st.caption(entry)
 
     if not items:
         st.warning("本轮新增资料未生成有效知识。")
