@@ -1,3 +1,6 @@
+import os
+import sys
+
 from openai import OpenAI
 from httpx import Timeout
 
@@ -87,6 +90,116 @@ def describe_llm_exception(exc, model):
             get_llm_timeout()
         )
     }
+
+
+def get_llm_runtime_diagnostics():
+
+    return {
+        "python_executable": sys.executable,
+        "cwd": os.getcwd(),
+        "api_key_present": bool(
+            get_config(
+                "DEEPSEEK_API_KEY"
+            )
+        ),
+        "base_url": get_config(
+            "DEEPSEEK_BASE_URL",
+            "https://api.deepseek.com"
+        ),
+        "model": get_config(
+            "DEEPSEEK_MODEL",
+            "deepseek-v4-flash"
+        ),
+        "timeout": str(
+            get_llm_timeout()
+        ),
+        "http_proxy_present": bool(
+            os.getenv(
+                "HTTP_PROXY"
+            )
+        ),
+        "https_proxy_present": bool(
+            os.getenv(
+                "HTTPS_PROXY"
+            )
+        ),
+        "all_proxy_present": bool(
+            os.getenv(
+                "ALL_PROXY"
+            )
+        )
+    }
+
+
+def smoke_test_llm():
+
+    diagnostics = get_llm_runtime_diagnostics()
+    model = diagnostics[
+        "model"
+    ]
+
+    try:
+
+        client = get_client()
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你只输出严格JSON，不要输出解释。"
+                },
+                {
+                    "role": "user",
+                    "content": '请回复一个JSON对象：{"ok": true}'
+                }
+            ],
+            temperature=0,
+            max_tokens=512,
+            response_format={
+                "type": "json_object"
+            },
+            stream=False
+        )
+        finish_reason = (
+            response.choices[0].finish_reason
+            if response.choices
+            else ""
+        )
+        result = (
+            response.choices[0].message.content
+            if response.choices
+            else ""
+        )
+
+        diagnostics[
+            "success"
+        ] = bool(
+            str(
+                result or ""
+            ).strip()
+        )
+        diagnostics[
+            "finish_reason"
+        ] = finish_reason
+        diagnostics[
+            "result_preview"
+        ] = str(
+            result or ""
+        )[:200]
+
+    except Exception as exc:
+
+        diagnostics[
+            "success"
+        ] = False
+        diagnostics.update(
+            describe_llm_exception(
+                exc,
+                model
+            )
+        )
+
+    return diagnostics
 
 
 def call_llm(system_prompt, user_content):

@@ -34,13 +34,18 @@ def initialize_session_state() -> None:
         if key not in st.session_state:
             st.session_state[key] = value
 
+    if "navigation_mode" not in st.session_state:
+        st.session_state.navigation_mode = st.session_state.current_mode
+
+
+def sync_navigation_mode() -> None:
+    st.session_state.current_mode = st.session_state.navigation_mode
+
 
 def render_navigation() -> None:
     st.sidebar.title("AutoRAG-Studio")
-    if st.session_state.get("navigation_mode") != st.session_state.current_mode:
-        st.session_state.navigation_mode = st.session_state.current_mode
 
-    mode = st.sidebar.radio(
+    st.sidebar.radio(
         "工作模式",
         options=["home", "generate", "update"],
         format_func=lambda value: {
@@ -49,13 +54,21 @@ def render_navigation() -> None:
             "update": "更新知识库",
         }[value],
         key="navigation_mode",
+        on_change=sync_navigation_mode,
     )
 
-    if mode != st.session_state.current_mode:
-        st.session_state.current_mode = mode
-        st.rerun()
-
     st.sidebar.caption(f"AutoRAG-Studio {APP_VERSION}")
+    with st.sidebar.expander("连接自检", expanded=False):
+        st.caption("用于排查当前 Streamlit 进程是否能连接 AI 服务。")
+        if st.button("测试 AI 服务连接", use_container_width=True):
+            from agents.llm_client import smoke_test_llm
+
+            result = smoke_test_llm()
+            if result.get("success"):
+                st.success("AI 服务连接正常。")
+            else:
+                st.error("AI 服务连接失败。")
+            st.json(result)
     st.sidebar.info("请勿在未经授权的公共云环境中上传客户敏感资料、未公开资料或含个人信息的数据。")
 
 

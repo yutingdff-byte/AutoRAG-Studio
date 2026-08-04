@@ -11,7 +11,6 @@ def render_home_page() -> None:
     render_page_header(
         "AutoRAG-Studio",
         "AI 知识库生成、检查与持续更新平台。",
-        eyebrow="V0.8.0-dev",
     )
 
     render_section_title("选择工作模式")
@@ -28,6 +27,7 @@ def render_home_page() -> None:
         )
         if st.button("进入新建知识库", use_container_width=True, key="home_go_generate"):
             st.session_state.current_mode = "generate"
+            st.session_state.navigation_mode = "generate"
             st.rerun()
 
     with update_col:
@@ -40,4 +40,5 @@ def render_home_page() -> None:
         )
         if st.button("进入更新知识库", use_container_width=True, key="home_go_update"):
             st.session_state.current_mode = "update"
+            st.session_state.navigation_mode = "update"
             st.rerun()

@@ -144,20 +144,22 @@ def load_global_styles() -> None:
         .autorag-file-card {
             border: 1px solid var(--autorag-border);
             border-radius: 8px;
-            padding: 0.8rem 0.9rem;
+            padding: 0.58rem 0.72rem;
             background: #ffffff;
-            margin-bottom: 0.55rem;
+            margin-bottom: 0.38rem;
         }
 
         .autorag-file-name {
             color: var(--autorag-ink);
-            font-weight: 680;
-            margin-bottom: 0.18rem;
+            font-size: 0.92rem;
+            font-weight: 660;
+            margin-bottom: 0.1rem;
+            line-height: 1.3;
         }
 
         .autorag-file-meta {
             color: var(--autorag-muted);
-            font-size: 0.84rem;
+            font-size: 0.8rem;
         }
 
         .autorag-footer {

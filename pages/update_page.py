@@ -281,6 +281,42 @@ def _append_new_log(logs: list[str], stage: str, status: str, message: str) -> N
     st.session_state.update_new_logs = logs
 
 
+def _new_knowledge_user_error(error: str) -> str:
+    text = str(error or "")
+    if "解析结果为空" in text or "未能生成有效 Facts" in text and "解析" in text:
+        return "未从新增资料中提取到有效内容，请检查文件后重试。"
+    if (
+        "Connection error" in text
+        or "APIConnectionError" in text
+        or "ConnectError" in text
+        or "模型调用" in text
+        or "未能生成有效 Facts" in text
+    ):
+        return "AI 服务暂时无法连接，请稍后重试。"
+    if "未能生成有效 RAG" in text:
+        return "新增资料生成失败，请稍后重试。"
+    return text or "新增资料生成失败，请稍后重试。"
+
+
+def _friendly_new_log_entry(entry: str) -> str:
+    parts = str(entry or "").split("｜")
+    if len(parts) < 3:
+        return str(entry or "")
+
+    stage, status = parts[0], parts[1]
+    message = "｜".join(parts[2:])
+    stage_label = {
+        "Parser": "解析资料",
+        "Facts": "提取事实",
+        "RAG": "生成知识",
+        "KnowledgeItem": "整理结果",
+    }.get(stage, stage)
+    message = message.replace("Facts", "事实")
+    message = message.replace("RAG", "知识")
+    message = message.replace("DeepSeek", "AI 服务")
+    return f"{stage_label}｜{status}｜{message}"
+
+
 def _generate_new_knowledge(files):
     if not files:
         st.session_state.update_new_knowledge = []
@@ -381,14 +417,19 @@ def _render_new_knowledge_result(items, errors) -> None:
     render_section_title("新增资料知识")
 
     if errors:
+        user_errors = []
         for error in errors:
-            st.error(f"新增资料处理失败：{error}")
+            user_error = _new_knowledge_user_error(error)
+            if user_error not in user_errors:
+                user_errors.append(user_error)
+        for error in user_errors:
+            st.error(f"新增资料生成失败：{error}")
 
     logs = st.session_state.get("update_new_logs", [])
     if logs:
-        with st.expander("查看新增资料处理日志", expanded=False):
+        with st.expander("查看处理日志", expanded=False):
             for entry in logs:
-                st.caption(entry)
+                st.code(_friendly_new_log_entry(entry), language="text")
 
     if not items:
         st.warning("本轮新增资料未生成有效知识。")
@@ -485,8 +526,7 @@ def _render_diff_result(result: DiffRunResult) -> None:
 def render_update_page() -> None:
     render_page_header(
         "更新已有知识库 Update",
-        "从历史知识中恢复知识，与新增资料对比，确认变化后生成新版知识库。",
-        eyebrow="V0.8 框架页面",
+        "历史知识恢复、新增资料生成与差异识别。",
     )
 
     render_step_navigation(
@@ -505,7 +545,7 @@ def render_update_page() -> None:
     with old_col:
         render_section_title("历史知识")
         st.caption(
-            "支持导入已有 Excel 或 Word 知识资料。系统会自动识别知识格式，并恢复为统一知识对象。"
+            "支持导入已有 Excel 或 Word 知识资料。\n\n系统自动识别格式并恢复为统一知识对象。"
         )
         old_files = st.file_uploader(
             "上传历史知识文件",
@@ -528,7 +568,7 @@ def render_update_page() -> None:
             st.session_state.update_restore_result = None
             st.session_state.update_restore_logs = []
 
-        if old_files and st.button("开始恢复历史知识", use_container_width=True):
+        if st.button("恢复历史知识", use_container_width=True, disabled=not bool(old_files)):
             try:
                 st.session_state.update_restore_ai_mode = False
                 restore_result = _restore_history_files(old_files, deep_restore=False)
@@ -541,7 +581,7 @@ def render_update_page() -> None:
 
     with new_col:
         render_section_title("新增资料")
-        st.caption("上传本次新增或更新的产品资料、价格政策、车型配置及其他业务资料。")
+        st.caption("上传本次新增或更新的产品资料。\n\n支持价格政策、车型配置及其他业务资料。")
         new_files = st.file_uploader(
             "上传新增资料",
             type=NEW_MATERIAL_TYPES,
@@ -549,6 +589,9 @@ def render_update_page() -> None:
             key="update_new_files",
         )
         _render_uploaded_files(new_files, "尚未上传新增资料。")
+
+        if st.button("生成新增知识", use_container_width=True, disabled=not bool(new_files)):
+            _generate_new_knowledge(new_files)
 
     if old_files and restore_result.files:
         _render_restore_result(restore_result)
@@ -576,9 +619,6 @@ def render_update_page() -> None:
                     st.info("已保留当前恢复结果，可继续上传新增资料。")
 
     if new_files:
-        if st.button("生成新增知识", use_container_width=True):
-            _generate_new_knowledge(new_files)
-
         _render_new_knowledge_result(
             st.session_state.get("update_new_knowledge", []),
             st.session_state.get("update_new_errors", []),
@@ -587,6 +627,10 @@ def render_update_page() -> None:
     old_items = restore_result.items if old_files else []
     new_items = st.session_state.get("update_new_knowledge", [])
     can_diff = bool(old_items and new_items)
+
+    st.divider()
+    status_text = f"历史知识 {'✓' if old_items else '○'}　新增知识 {'✓' if new_items else '○'}"
+    st.caption(status_text)
 
     if st.button("开始差异分析", use_container_width=True, disabled=not can_diff):
         st.session_state.update_diff_result = compare(old_items, new_items)
