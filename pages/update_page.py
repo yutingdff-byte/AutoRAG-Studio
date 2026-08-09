@@ -4,15 +4,22 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import streamlit as st
 
 from knowledge.adapter import knowledge_to_preview_rows
 from knowledge.restore_manager import RestoreResult, get_restore_cache_key, restore
 from knowledge.adapter import rag_to_knowledge
+from knowledge.models import KnowledgeItem
 from diff.engine import compare
 from diff.models import ChangeType, DiffResult, DiffRunResult, DetectedUpdateScope
 from diff.reasons import change_type_label, review_reason_label
+from generator.excel_generator import generate_excel
+from merge.engine import MergeResult, merge_knowledge
+from review.decisions import build_default_decisions, decision_from_label
+from review.models import ReviewDecision, ReviewDecisionType
 from ui.components import (
     render_file_card,
     render_metric_cards,
@@ -24,6 +31,18 @@ from ui.components import (
 
 HISTORY_TYPES = ["xlsx", "xls", "docx"]
 NEW_MATERIAL_TYPES = ["xlsx", "xls", "docx", "pdf", "txt", "png", "jpg", "jpeg", "webp"]
+
+
+def _reset_update_review_state() -> None:
+    st.session_state.update_review_decisions = {}
+    st.session_state.update_review_completed = False
+    st.session_state.update_merge_result = None
+    st.session_state.update_export_files = {}
+
+
+def _reset_update_diff_state() -> None:
+    st.session_state.update_diff_result = None
+    _reset_update_review_state()
 
 
 def _file_type(file) -> str:
@@ -134,6 +153,7 @@ def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
         st.session_state.update_restore_cache_key = ""
         st.session_state.update_restore_running = False
         st.session_state.update_restore_ai_mode = False
+        _reset_update_diff_state()
         return RestoreResult()
 
     cache_key = _history_files_cache_key(files, deep_restore=deep_restore)
@@ -352,12 +372,14 @@ def _generate_new_knowledge(files):
         st.session_state.update_new_knowledge = []
         st.session_state.update_new_errors = []
         st.session_state.update_new_logs = []
+        _reset_update_diff_state()
         return []
 
     st.session_state.update_new_knowledge = []
     st.session_state.update_new_errors = []
     st.session_state.update_new_logs = []
     st.session_state.update_stage = "generating_new"
+    _reset_update_diff_state()
 
     materials = []
     source_files = []
@@ -656,22 +678,303 @@ def _render_diff_result(result: DiffRunResult) -> None:
                 st.caption("暂无数据。")
 
 
+def _reviewable_results(result: DiffRunResult, change_type: ChangeType | None = None) -> list[DiffResult]:
+    reviewable = [
+        item
+        for item in result.results
+        if item.change_type in {ChangeType.ADDED, ChangeType.UPDATED, ChangeType.REVIEW_REQUIRED}
+    ]
+    if change_type:
+        reviewable = [item for item in reviewable if item.change_type == change_type]
+    return reviewable
+
+
+def _ensure_review_decisions(result: DiffRunResult) -> dict[str, ReviewDecision]:
+    decisions = st.session_state.setdefault("update_review_decisions", {})
+    defaults = build_default_decisions(result.results)
+    for diff_id, decision in defaults.items():
+        decisions.setdefault(diff_id, decision)
+    for diff_id in list(decisions):
+        if diff_id not in defaults:
+            decisions.pop(diff_id, None)
+    st.session_state.update_review_decisions = decisions
+    return decisions
+
+
+def _decision_label(result: DiffResult, decision: ReviewDecision) -> str:
+    if result.change_type == ChangeType.ADDED:
+        return "不加入" if decision.decision == ReviewDecisionType.SKIP else "加入新版知识库"
+    if result.change_type == ChangeType.UPDATED:
+        return "保留原答案" if decision.decision == ReviewDecisionType.KEEP_OLD else "使用新答案"
+    if decision.decision == ReviewDecisionType.REMOVE:
+        return "确认删除"
+    if decision.decision == ReviewDecisionType.ACCEPT_NEW:
+        return "使用新知识"
+    return "保留原知识"
+
+
+def _review_options(result: DiffResult) -> list[str]:
+    if result.change_type == ChangeType.ADDED:
+        return ["加入新版知识库", "不加入"]
+    if result.change_type == ChangeType.UPDATED:
+        return ["使用新答案", "保留原答案"]
+    return ["保留原知识", "使用新知识", "确认删除"]
+
+
+def _render_review_item(result: DiffResult, decisions: dict[str, ReviewDecision], key_scope: str) -> None:
+    old_item = result.old_item
+    new_item = result.new_item
+    item = new_item or old_item
+    title = item.question if item else result.diff_id
+    with st.expander(f"{change_type_label(result.change_type)}｜{_result_model(result)}｜{title}", expanded=False):
+        st.caption(result.change_summary or result.reason_text or review_reason_label(result.review_reason))
+        st.markdown(f"**问题**：{title or '未指定'}")
+        if old_item:
+            st.markdown("**原答案**")
+            st.write(old_item.answer)
+        if new_item:
+            st.markdown("**新答案**")
+            st.write(new_item.answer)
+
+        options = _review_options(result)
+        current = decisions.get(result.diff_id)
+        current_label = _decision_label(result, current) if current else options[0]
+        index = options.index(current_label) if current_label in options else 0
+        selected = st.selectbox(
+            "处理方式",
+            options,
+            index=index,
+            key=f"review_decision_{key_scope}_{result.diff_id}",
+        )
+
+        delete_confirmed = False
+        if selected == "确认删除":
+            delete_confirmed = st.checkbox(
+                "确认从新版知识库中删除此知识",
+                key=f"review_delete_confirm_{key_scope}_{result.diff_id}",
+            )
+            if not delete_confirmed:
+                st.warning("删除需要二次确认；未确认前系统仍会保留原知识。")
+
+        if selected == "确认删除" and not delete_confirmed:
+            decisions[result.diff_id] = decision_from_label(result, "保留原知识")
+        else:
+            decisions[result.diff_id] = decision_from_label(
+                result,
+                selected,
+                delete_confirmed=delete_confirmed,
+            )
+        st.session_state.update_review_decisions = decisions
+
+
+def _render_review_center(result: DiffRunResult) -> None:
+    decisions = _ensure_review_decisions(result)
+    reviewable = _reviewable_results(result)
+    added = _reviewable_results(result, ChangeType.ADDED)
+    updated = _reviewable_results(result, ChangeType.UPDATED)
+    required = _reviewable_results(result, ChangeType.REVIEW_REQUIRED)
+
+    render_section_title("人工确认")
+    render_metric_cards(
+        [
+            ("需要处理", len(reviewable), "新增、更新和待确认知识"),
+            ("新增", len(added), "默认加入新版知识库"),
+            ("更新", len(updated), "默认使用新答案"),
+            ("待确认", len(required), "默认保留原知识"),
+        ]
+    )
+
+    bulk_col_1, bulk_col_2, status_col = st.columns([1, 1, 2])
+    with bulk_col_1:
+        if st.button("全部接受新增", use_container_width=True, disabled=not bool(added)):
+            for item in added:
+                decisions[item.diff_id] = decision_from_label(item, "加入新版知识库")
+            st.session_state.update_review_decisions = decisions
+    with bulk_col_2:
+        if st.button("全部接受更新", use_container_width=True, disabled=not bool(updated)):
+            for item in updated:
+                decisions[item.diff_id] = decision_from_label(item, "使用新答案")
+            st.session_state.update_review_decisions = decisions
+    with status_col:
+        st.caption("未变化知识会自动保留；待确认知识未操作时默认保留原知识。")
+
+    tabs = st.tabs(["全部待处理", "新增", "更新", "待确认"])
+    tab_specs = [
+        (tabs[0], "all", reviewable),
+        (tabs[1], "added", added),
+        (tabs[2], "updated", updated),
+        (tabs[3], "required", required),
+    ]
+    for tab, key_scope, items in tab_specs:
+        with tab:
+            if not items:
+                st.caption("暂无需要处理的知识。")
+                continue
+            for item in items:
+                _render_review_item(item, decisions, key_scope)
+
+    if st.button("生成新版知识库", use_container_width=True):
+        merge_result = merge_knowledge(result, decisions)
+        st.session_state.update_merge_result = merge_result
+        st.session_state.update_review_completed = True
+        st.session_state.update_stage = "merged"
+        if not merge_result.final_items:
+            st.session_state.update_export_files = {}
+            st.error("最终知识为空，已停止导出。")
+        else:
+            st.session_state.update_export_files = _build_update_export_files(merge_result.final_items)
+
+
+def _knowledge_items_to_rag_data(items: list[KnowledgeItem]) -> dict:
+    rag_items = []
+    for index, item in enumerate(items, start=1):
+        source_type = str(item.knowledge_type or "").lower()
+        excel_type = "dynamic" if source_type in {"price", "policy", "store", "marketing", "finance", "dynamic"} else "static"
+        rag_items.append(
+            {
+                "rag_id": item.knowledge_id or f"UPDATE-{index:03d}",
+                "brand": item.brand or "",
+                "model": item.model or "",
+                "trim": item.trim or "",
+                "question": item.question,
+                "answer": item.answer,
+                "category": item.category,
+                "module": item.module or "",
+                "knowledge_type": excel_type,
+                "answer_type": item.answer_type or "updated",
+                "need_confirm": "是" if item.need_confirm else "否",
+                "fact_refs": item.fact_refs,
+                "source_files": item.source_files,
+            }
+        )
+    return {"rag_knowledge": rag_items}
+
+
+def _facts_data_for_export(items: list[KnowledgeItem]) -> dict:
+    return {
+        "facts": [
+            {
+                "brand": item.brand or "",
+                "model": item.model or "",
+                "trim": item.trim or "",
+                "category": item.category,
+                "knowledge_type": item.knowledge_type,
+            }
+            for item in items
+        ]
+    }
+
+
+def _build_update_export_files(items: list[KnowledgeItem]) -> dict:
+    with TemporaryDirectory() as temp_dir:
+        output_path = str(Path(temp_dir) / "update.xlsx")
+        output_paths = generate_excel(
+            _facts_data_for_export(items),
+            _knowledge_items_to_rag_data(items),
+            {"overall_result": "PASS", "issues": []},
+            output_path,
+        )
+        export_files = {}
+        for key, path in output_paths.items():
+            file_path = Path(path)
+            export_files[key] = {
+                "file_name": file_path.name,
+                "data": file_path.read_bytes(),
+            }
+        return export_files
+
+
+def _render_update_export(merge_result: MergeResult | None) -> None:
+    if merge_result is None:
+        return
+
+    render_section_title("更新完成")
+    final_count = len(merge_result.final_items)
+    render_metric_cards(
+        [
+            ("新增采用", merge_result.added_accepted, "已加入新版知识库的新增知识"),
+            ("更新采用", merge_result.updated_accepted, "已使用新答案的更新知识"),
+            ("保留旧知识", merge_result.kept_old, "未变化或选择保留的历史知识"),
+            ("删除", merge_result.removed, "已二次确认删除的知识"),
+            ("最终知识", final_count, "新版知识库最终条数"),
+        ]
+    )
+
+    if merge_result.duplicate_warnings:
+        with st.expander("重复知识提示", expanded=False):
+            st.dataframe(
+                [
+                    {
+                        "类型": warning.warning_type,
+                        "知识ID": "、".join(warning.knowledge_ids),
+                        "说明": warning.message,
+                    }
+                    for warning in merge_result.duplicate_warnings
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    if not final_count:
+        st.error("最终知识为空，不能导出。")
+        return
+
+    export_files = st.session_state.get("update_export_files", {})
+    if not export_files:
+        st.warning("下载文件尚未生成，请重新点击“生成新版知识库”。")
+        return
+
+    static_file = export_files.get("static")
+    dynamic_file = export_files.get("dynamic")
+    download_col_1, download_col_2 = st.columns(2)
+    with download_col_1:
+        if static_file:
+            st.download_button(
+                "下载车型配置知识库",
+                data=static_file["data"],
+                file_name=static_file["file_name"],
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+    with download_col_2:
+        if dynamic_file:
+            st.download_button(
+                "下载价格政策知识库",
+                data=dynamic_file["data"],
+                file_name=dynamic_file["file_name"],
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+
+
+def _update_steps() -> list[str]:
+    stage = st.session_state.get("update_stage", "idle")
+    completed = {
+        "1 上传历史知识": bool(st.session_state.get("update_old_file_names")),
+        "2 上传新增资料": bool(st.session_state.get("update_new_file_names")),
+        "3 恢复统一知识": bool((st.session_state.get("update_restore_result") or RestoreResult()).items),
+        "4 差异分析": bool(st.session_state.get("update_diff_result")),
+        "5 人工确认": bool(st.session_state.get("update_review_completed")),
+        "6 导出": bool(st.session_state.get("update_export_files")),
+    }
+    labels = []
+    for step, done in completed.items():
+        if done:
+            labels.append(f"{step} ✓")
+        elif stage in {"restoring", "generating_new", "diff_completed", "merged"} and not labels:
+            labels.append(f"{step} 当前")
+        else:
+            labels.append(step)
+    return labels
+
+
 def render_update_page() -> None:
     render_page_header(
         "更新已有知识库 Update",
         "历史知识恢复、新增资料生成与差异识别。",
     )
 
-    render_step_navigation(
-        [
-            "1 上传历史知识",
-            "2 上传新增资料",
-            "3 恢复统一知识",
-            "4 差异分析",
-            "5 人工确认",
-            "6 导出",
-        ]
-    )
+    render_step_navigation(_update_steps())
 
     old_col, new_col = st.columns(2)
 
@@ -701,6 +1004,7 @@ def render_update_page() -> None:
             restore_result = RestoreResult()
             st.session_state.update_restore_result = None
             st.session_state.update_restore_logs = []
+            _reset_update_diff_state()
 
         if st.button(
             "恢复历史知识",
@@ -774,6 +1078,7 @@ def render_update_page() -> None:
 
     old_items = restore_result.items
     can_diff = bool(old_items and new_items)
+    can_keep_old = bool(old_items and not new_items)
 
     st.divider()
     status_text = f"历史知识 {'✓' if old_items else '○'}　新增知识 {'✓' if new_items else '○'}"
@@ -781,11 +1086,25 @@ def render_update_page() -> None:
 
     if st.button("开始差异分析", use_container_width=True, disabled=not can_diff):
         st.session_state.update_diff_result = compare(old_items, new_items)
+        _ensure_review_decisions(st.session_state.update_diff_result)
+        st.session_state.update_merge_result = None
+        st.session_state.update_export_files = {}
         st.session_state.update_stage = "diff_completed"
 
-    if not can_diff:
+    if can_keep_old:
+        st.info("当前没有新增知识，可以直接生成新版知识库，结果将保留历史知识。")
+        if st.button("直接生成新版知识库", use_container_width=True):
+            merge_result = MergeResult(final_items=list(old_items), kept_old=len(old_items))
+            st.session_state.update_merge_result = merge_result
+            st.session_state.update_review_completed = True
+            st.session_state.update_export_files = _build_update_export_files(merge_result.final_items)
+            st.session_state.update_stage = "merged"
+    elif not can_diff:
         st.caption("恢复历史知识并生成新增知识后，可以开始差异分析。")
 
     diff_result = st.session_state.get("update_diff_result")
     if diff_result:
         _render_diff_result(diff_result)
+        _render_review_center(diff_result)
+
+    _render_update_export(st.session_state.get("update_merge_result"))

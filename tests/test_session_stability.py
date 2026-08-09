@@ -3,6 +3,8 @@ from streamlit.testing.v1 import AppTest
 from diff.engine import compare
 from knowledge.models import KnowledgeItem
 from knowledge.restore_manager import RestoreFileResult, RestoreResult
+from merge.engine import MergeResult
+from review.decisions import build_default_decisions
 
 
 def _knowledge(knowledge_id: str, answer: str) -> KnowledgeItem:
@@ -96,6 +98,37 @@ def test_update_results_and_diff_survive_navigation_reruns():
     assert len(app.session_state["update_new_knowledge"]) == 1
     assert app.session_state["update_diff_result"].total_count == 1
     assert any(tab.label == "全部" for tab in app.tabs)
+    assert not app.exception
+
+
+def test_update_review_merge_export_survive_navigation_reruns():
+    old_item = _knowledge("OLD-001", "10万元起")
+    new_item = _knowledge("NEW-001", "9万元起")
+    diff_result = compare([old_item], [new_item])
+    merge_result = MergeResult(final_items=[new_item], updated_accepted=1)
+
+    app = AppTest.from_file("../app.py", default_timeout=60)
+    app.run(timeout=60)
+    app.session_state["update_restore_result"] = RestoreResult(items=[old_item])
+    app.session_state["update_new_knowledge"] = [new_item]
+    app.session_state["update_diff_result"] = diff_result
+    app.session_state["update_review_decisions"] = build_default_decisions(diff_result.results)
+    app.session_state["update_review_completed"] = True
+    app.session_state["update_merge_result"] = merge_result
+    app.session_state["update_export_files"] = {
+        "static": {"file_name": "config.xlsx", "data": b"config"},
+        "dynamic": {"file_name": "policy.xlsx", "data": b"policy"},
+    }
+
+    app.radio[0].set_value("update").run(timeout=60)
+    assert app.session_state["update_review_completed"]
+    assert app.session_state["update_export_files"]["dynamic"]["data"] == b"policy"
+
+    app.radio[0].set_value("home").run(timeout=60)
+    app.radio[0].set_value("update").run(timeout=60)
+
+    assert app.session_state["update_merge_result"].updated_accepted == 1
+    assert app.session_state["update_export_files"]["static"]["data"] == b"config"
     assert not app.exception
 
 

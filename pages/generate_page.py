@@ -733,12 +733,8 @@ def build_update_notice_rows(review_rows):
                     "事项",
                     ""
                 ),
-                "说明": row.get(
-                    "说明",
-                    ""
-                ),
-                "建议": row.get(
-                    "处理动作",
+                "分类": row.get(
+                    "分类",
                     ""
                 )
             }

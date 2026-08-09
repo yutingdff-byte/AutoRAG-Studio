@@ -33,6 +33,10 @@ def initialize_session_state() -> None:
         "update_new_logs": [],
         "update_old_file_names": [],
         "update_new_file_names": [],
+        "update_review_decisions": {},
+        "update_review_completed": False,
+        "update_merge_result": None,
+        "update_export_files": {},
     }
 
     for key, value in defaults.items():
