@@ -1,6 +1,3 @@
-import os
-import sys
-
 from openai import OpenAI
 from httpx import Timeout
 
@@ -19,7 +16,7 @@ def get_llm_timeout():
     read_timeout = float(
         get_config(
             "LLM_READ_TIMEOUT_SECONDS",
-            "300"
+            "600"
         )
     )
 
@@ -42,7 +39,13 @@ def get_client():
             "DEEPSEEK_BASE_URL",
             "https://api.deepseek.com"
         ),
-        timeout=get_llm_timeout()
+        timeout=get_llm_timeout(),
+        max_retries=int(
+            get_config(
+                "LLM_MAX_RETRIES",
+                "0"
+            )
+        )
     )
 
 
@@ -88,118 +91,14 @@ def describe_llm_exception(exc, model):
         "model": model,
         "timeout": str(
             get_llm_timeout()
-        )
-    }
-
-
-def get_llm_runtime_diagnostics():
-
-    return {
-        "python_executable": sys.executable,
-        "cwd": os.getcwd(),
-        "api_key_present": bool(
+        ),
+        "max_retries": int(
             get_config(
-                "DEEPSEEK_API_KEY"
-            )
-        ),
-        "base_url": get_config(
-            "DEEPSEEK_BASE_URL",
-            "https://api.deepseek.com"
-        ),
-        "model": get_config(
-            "DEEPSEEK_MODEL",
-            "deepseek-v4-flash"
-        ),
-        "timeout": str(
-            get_llm_timeout()
-        ),
-        "http_proxy_present": bool(
-            os.getenv(
-                "HTTP_PROXY"
-            )
-        ),
-        "https_proxy_present": bool(
-            os.getenv(
-                "HTTPS_PROXY"
-            )
-        ),
-        "all_proxy_present": bool(
-            os.getenv(
-                "ALL_PROXY"
+                "LLM_MAX_RETRIES",
+                "0"
             )
         )
     }
-
-
-def smoke_test_llm():
-
-    diagnostics = get_llm_runtime_diagnostics()
-    model = diagnostics[
-        "model"
-    ]
-
-    try:
-
-        client = get_client()
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "你只输出严格JSON，不要输出解释。"
-                },
-                {
-                    "role": "user",
-                    "content": '请回复一个JSON对象：{"ok": true}'
-                }
-            ],
-            temperature=0,
-            max_tokens=512,
-            response_format={
-                "type": "json_object"
-            },
-            stream=False
-        )
-        finish_reason = (
-            response.choices[0].finish_reason
-            if response.choices
-            else ""
-        )
-        result = (
-            response.choices[0].message.content
-            if response.choices
-            else ""
-        )
-
-        diagnostics[
-            "success"
-        ] = bool(
-            str(
-                result or ""
-            ).strip()
-        )
-        diagnostics[
-            "finish_reason"
-        ] = finish_reason
-        diagnostics[
-            "result_preview"
-        ] = str(
-            result or ""
-        )[:200]
-
-    except Exception as exc:
-
-        diagnostics[
-            "success"
-        ] = False
-        diagnostics.update(
-            describe_llm_exception(
-                exc,
-                model
-            )
-        )
-
-    return diagnostics
 
 
 def call_llm(system_prompt, user_content):
@@ -212,12 +111,9 @@ def call_llm(system_prompt, user_content):
             "deepseek-v4-flash"
         )
 
-        response = client.chat.completions.create(
-
-            # 根据你的DeepSeek账号实际可用模型调整
-            model=model,
-
-            messages=[
+        request_args = {
+            "model": model,
+            "messages": [
                 {
                     "role": "system",
                     "content": system_prompt
@@ -227,16 +123,83 @@ def call_llm(system_prompt, user_content):
                     "content": user_content
                 }
             ],
-
-            temperature=0.2,
-
-            # V4支持更长输出
-            max_tokens=64000,
-
-            response_format={
+            "temperature": 0.2,
+            "max_tokens": 64000,
+            "response_format": {
                 "type": "json_object"
-            },
+            }
+        }
+        stream_threshold = int(
+            get_config(
+                "LLM_STREAM_THRESHOLD_CHARS",
+                "8000"
+            )
+        )
+        use_stream = len(
+            str(
+                user_content or ""
+            )
+        ) >= stream_threshold
 
+        if use_stream:
+
+            response = client.chat.completions.create(
+                **request_args,
+                stream=True
+            )
+            content_parts = []
+            finish_reason = ""
+
+            for chunk in response:
+
+                choices = getattr(
+                    chunk,
+                    "choices",
+                    None
+                ) or []
+                if not choices:
+                    continue
+
+                choice = choices[0]
+                delta = getattr(
+                    choice,
+                    "delta",
+                    None
+                )
+                chunk_content = getattr(
+                    delta,
+                    "content",
+                    None
+                ) if delta else None
+                if chunk_content:
+                    content_parts.append(
+                        chunk_content
+                    )
+
+                if getattr(
+                    choice,
+                    "finish_reason",
+                    None
+                ):
+                    finish_reason = choice.finish_reason
+
+            content = "".join(
+                content_parts
+            )
+            if not content:
+                print("LLM返回为空")
+                return None
+
+            print("======================")
+            print("DeepSeek调用完成")
+            print("transport: stream")
+            print("finish_reason:", finish_reason)
+            print("======================")
+
+            return content
+
+        response = client.chat.completions.create(
+            **request_args,
             stream=False
         )
 

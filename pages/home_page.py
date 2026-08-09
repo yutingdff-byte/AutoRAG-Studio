@@ -7,6 +7,11 @@ import streamlit as st
 from ui.components import render_feature_card, render_page_header, render_section_title
 
 
+def _navigate_to(mode: str) -> None:
+    st.session_state.current_mode = mode
+    st.session_state.navigation_mode = mode
+
+
 def render_home_page() -> None:
     render_page_header(
         "AutoRAG-Studio",
@@ -25,10 +30,13 @@ def render_home_page() -> None:
             "可用",
             "ready",
         )
-        if st.button("进入新建知识库", use_container_width=True, key="home_go_generate"):
-            st.session_state.current_mode = "generate"
-            st.session_state.navigation_mode = "generate"
-            st.rerun()
+        st.button(
+            "进入新建知识库",
+            use_container_width=True,
+            key="home_go_generate",
+            on_click=_navigate_to,
+            args=("generate",),
+        )
 
     with update_col:
         render_feature_card(
@@ -38,7 +46,10 @@ def render_home_page() -> None:
             "V0.8 建设中",
             "building",
         )
-        if st.button("进入更新知识库", use_container_width=True, key="home_go_update"):
-            st.session_state.current_mode = "update"
-            st.session_state.navigation_mode = "update"
-            st.rerun()
+        st.button(
+            "进入更新知识库",
+            use_container_width=True,
+            key="home_go_update",
+            on_click=_navigate_to,
+            args=("update",),
+        )

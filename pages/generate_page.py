@@ -914,6 +914,19 @@ MAX_UPLOAD_FILE_COUNT = 100
 IMAGE_PREVIEW_CHARS = 1200
 
 
+def _cache_export_files(excel_paths):
+    cached_files = {}
+    for knowledge_type, path in (excel_paths or {}).items():
+        if not path or not os.path.exists(path):
+            continue
+        with open(path, "rb") as file_handle:
+            cached_files[knowledge_type] = {
+                "file_name": os.path.basename(path),
+                "data": file_handle.read(),
+            }
+    return cached_files
+
+
 def get_uploaded_file_extension(file):
 
     return os.path.splitext(
@@ -1040,7 +1053,8 @@ def render_generate_page() -> None:
     uploaded_files = st.file_uploader(
         "上传汽车资料（支持 Excel、Word、PDF、TXT 及图片资料）",
         type=SUPPORTED_UPLOAD_TYPES,
-        accept_multiple_files=True
+        accept_multiple_files=True,
+        key="generate_uploaded_files",
     )
 
     st.caption(
@@ -1107,6 +1121,10 @@ def render_generate_page() -> None:
         if st.button(
             "🚀 开始生成RAG知识库"
         ):
+
+            st.session_state.generate_stage = "running"
+            st.session_state.generate_result = None
+            st.session_state.generate_export_files = {}
 
             st.divider()
 
@@ -1250,62 +1268,66 @@ def render_generate_page() -> None:
 
             def update_progress(step, data):
 
+                safe_data = data if isinstance(
+                    data,
+                    dict
+                ) else {}
+
                 if step == "Step1":
 
-                    if not isinstance(
-                        data,
-                        dict
-                    ):
+                    if not safe_data:
 
                         logs.append(
                             "Step1 Facts事实抽取失败：未返回有效结果"
                         )
 
-                        status_box.markdown(
-                            "\n\n".join(
-                                logs
-                            )
+                        status_box.code(
+                            "\n".join(logs),
+                            language="text"
                         )
 
                         return
 
                     logs.append(
-                        f"Step1 Facts事实抽取完成：{len(data.get('facts', []))} 条"
+                        f"Step1 Facts事实抽取完成：{len(safe_data.get('facts', []))} 条"
                     )
 
                 elif step == "Step2":
 
-                    if not isinstance(
-                        data,
-                        dict
-                    ):
+                    if not safe_data:
 
                         logs.append(
                             "Step2 RAG知识生成失败：未返回有效结果"
                         )
 
-                        status_box.markdown(
-                            "\n\n".join(
-                                logs
-                            )
+                        status_box.code(
+                            "\n".join(logs),
+                            language="text"
                         )
 
                         return
 
                     logs.append(
-                        f"Step2 RAG知识生成完成：{len(data.get('rag_knowledge', []))} 条"
+                        f"Step2 RAG知识生成完成：{len(safe_data.get('rag_knowledge', []))} 条"
                     )
 
                 elif step == "Step3":
 
-                    logs.append(
-                        "Step3 QC质量检测完成"
-                    )
+                    if not safe_data:
 
-                status_box.markdown(
-                    "\n\n".join(
-                        logs
-                    )
+                        logs.append(
+                            "Step3 QC质量检测失败：未返回有效结果"
+                        )
+
+                    else:
+
+                        logs.append(
+                            "Step3 QC质量检测完成"
+                        )
+
+                status_box.code(
+                    "\n".join(logs),
+                    language="text"
                 )
 
             with st.spinner(
@@ -1324,7 +1346,42 @@ def render_generate_page() -> None:
                         image_parse_stats=image_parse_stats
                     )
 
+                    if not isinstance(
+                        result,
+                        dict
+                    ):
+
+                        raise RuntimeError(
+                            "生成流程未返回有效结果"
+                        )
+
+                    required_results = {
+                        "facts": result.get("facts"),
+                        "rag": result.get("rag"),
+                        "qc": result.get("qc"),
+                        "excel_paths": result.get("excel_paths"),
+                    }
+                    invalid_results = [
+                        name
+                        for name, value in required_results.items()
+                        if not isinstance(value, dict) or not value
+                    ]
+                    if invalid_results:
+
+                        raise RuntimeError(
+                            "生成流程结果不完整：" + "、".join(invalid_results)
+                        )
+
+                    st.session_state.generate_result = result
+                    st.session_state.generate_input_file_count = len(uploaded_files)
+                    st.session_state.generate_export_files = _cache_export_files(
+                        result.get("excel_paths", {})
+                    )
+                    st.session_state.generate_stage = "completed"
+
                 except Exception as exc:
+
+                    st.session_state.generate_stage = "error"
 
                     error_text = str(
                         exc
@@ -1347,18 +1404,17 @@ def render_generate_page() -> None:
                         expanded=False
                     ):
 
-                        for entry in logs:
-
-                            st.caption(
-                                entry
-                            )
-
-                        st.caption(
-                            error_text
+                        st.code(
+                            "\n".join([*logs, error_text]),
+                            language="text"
                         )
 
                     st.stop()
 
+    result = st.session_state.get("generate_result")
+    input_file_count = st.session_state.get("generate_input_file_count", 0)
+
+    if result:
             st.success(
                 "RAG生成完成"
             )
@@ -1427,7 +1483,7 @@ def render_generate_page() -> None:
 
                     render_metric_card(
                         "文件数量",
-                        len(uploaded_files)
+                        input_file_count
                     )
 
                 with col_facts:
@@ -1798,10 +1854,7 @@ def render_generate_page() -> None:
                     "Excel下载"
                 )
 
-                excel_paths = result.get(
-                    "excel_paths",
-                    {}
-                )
+                export_files = st.session_state.get("generate_export_files", {})
 
                 excluded_count = result.get(
                     "rag",
@@ -1819,45 +1872,26 @@ def render_generate_page() -> None:
 
                 col_static_download,col_dynamic_download = st.columns(2)
 
-                static_path = excel_paths.get(
-                    "static"
-                )
-
-                dynamic_path = excel_paths.get(
-                    "dynamic"
-                )
+                static_file = export_files.get("static")
+                dynamic_file = export_files.get("dynamic")
 
                 with col_static_download:
 
-                    if static_path:
-
-                        with open(
-                            static_path,
-                            "rb"
-                        ) as f:
-
-                            st.download_button(
-                                label="下载车型配置知识库Excel",
-                                data=f,
-                                file_name=os.path.basename(
-                                    static_path
-                                )
-                            )
+                    if static_file:
+                        st.download_button(
+                            label="下载车型配置知识库Excel",
+                            data=static_file["data"],
+                            file_name=static_file["file_name"],
+                            key="download_static_knowledge",
+                        )
 
                 with col_dynamic_download:
 
-                    if dynamic_path:
-
-                        with open(
-                            dynamic_path,
-                            "rb"
-                        ) as f:
-
-                            st.download_button(
-                                label="下载价格政策知识库Excel",
-                                data=f,
-                                file_name=os.path.basename(
-                                    dynamic_path
-                                )
-                            )
+                    if dynamic_file:
+                        st.download_button(
+                            label="下载价格政策知识库Excel",
+                            data=dynamic_file["data"],
+                            file_name=dynamic_file["file_name"],
+                            key="download_dynamic_knowledge",
+                        )
 

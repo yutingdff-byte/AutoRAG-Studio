@@ -25,36 +25,6 @@ def load_global_styles() -> None:
             padding-bottom: 3rem;
         }
 
-        .autorag-page-header {
-            border-bottom: 1px solid var(--autorag-border);
-            padding-bottom: 1.15rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .autorag-eyebrow {
-            color: var(--autorag-blue);
-            font-size: 0.82rem;
-            font-weight: 700;
-            letter-spacing: 0;
-            margin-bottom: 0.35rem;
-        }
-
-        .autorag-title {
-            color: var(--autorag-ink);
-            font-size: 2rem;
-            font-weight: 760;
-            line-height: 1.2;
-            margin: 0;
-        }
-
-        .autorag-subtitle {
-            color: var(--autorag-muted);
-            font-size: 1rem;
-            line-height: 1.65;
-            margin-top: 0.55rem;
-            max-width: 820px;
-        }
-
         .autorag-card {
             border: 1px solid var(--autorag-border);
             border-radius: 8px;

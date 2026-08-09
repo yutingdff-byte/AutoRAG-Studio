@@ -144,6 +144,7 @@ def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
         st.session_state.update_restore_result = cached_result
         st.session_state.update_restore_logs = logs
         st.session_state.update_restore_cache_key = cache_key
+        st.session_state.update_stage = "restored"
         st.info("同一批历史文件已恢复，直接复用结果。")
         return cached_result
 
@@ -154,8 +155,9 @@ def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
         logs.append(f"{file_name}｜{stage}｜{status}｜{message}")
         st.session_state.update_restore_logs = logs
         friendly_logs = [_friendly_restore_log_entry(entry) for entry in logs[-5:]]
-        log_box.info("\n".join(friendly_logs))
+        log_box.code("\n".join(friendly_logs), language="text")
 
+    st.session_state.update_stage = "restoring"
     st.session_state.update_restore_running = True
     st.session_state.update_restore_cache_key = cache_key
 
@@ -167,6 +169,7 @@ def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
                 deep_restore=deep_restore,
             )
     except Exception as exc:
+        st.session_state.update_stage = "restore_error"
         logs.append(f"Restore｜失败｜{exc}")
         st.session_state.update_restore_result = RestoreResult()
         st.session_state.update_restore_logs = logs
@@ -177,6 +180,7 @@ def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
     restore_cache[cache_key] = result
     st.session_state.update_restore_result = result
     st.session_state.update_restore_logs = logs
+    st.session_state.update_stage = "restored"
     return result
 
 
@@ -211,8 +215,13 @@ def _render_restore_result(result: RestoreResult) -> None:
 
         if file_result.logs:
             with st.expander("查看恢复日志", expanded=False):
-                for entry in file_result.logs:
-                    st.caption(_friendly_restore_log_entry(entry))
+                st.code(
+                    "\n".join(
+                        _friendly_restore_log_entry(entry)
+                        for entry in file_result.logs
+                    ),
+                    language="text",
+                )
 
         failures = report.get("failures") or []
         if failures:
@@ -257,7 +266,26 @@ def _summarize_stage_output(output: str) -> str:
         for line in str(output or "").splitlines()
         if line.strip()
     ]
-    return "\n".join(lines[-12:])[:1500]
+    diagnostic_prefixes = (
+        "调用DeepSeek失败",
+        "exception_class:",
+        "exception_message:",
+        "cause_class:",
+        "cause_message:",
+        "http_status:",
+        "request_endpoint:",
+        "model:",
+        "timeout:",
+        "max_retries:",
+    )
+    selected = [
+        line
+        for line in lines
+        if line.startswith(diagnostic_prefixes)
+    ]
+    selected.extend(lines[-8:])
+    selected = list(dict.fromkeys(selected))
+    return "\n".join(selected)[:3000]
 
 
 def _fact_count(facts) -> int:
@@ -283,6 +311,8 @@ def _append_new_log(logs: list[str], stage: str, status: str, message: str) -> N
 
 def _new_knowledge_user_error(error: str) -> str:
     text = str(error or "")
+    if "ReadTimeout" in text or "响应超时" in text:
+        return "AI 服务响应超时，请稍后重试或减少单次资料量。"
     if "解析结果为空" in text or "未能生成有效 Facts" in text and "解析" in text:
         return "未从新增资料中提取到有效内容，请检查文件后重试。"
     if (
@@ -324,6 +354,11 @@ def _generate_new_knowledge(files):
         st.session_state.update_new_logs = []
         return []
 
+    st.session_state.update_new_knowledge = []
+    st.session_state.update_new_errors = []
+    st.session_state.update_new_logs = []
+    st.session_state.update_stage = "generating_new"
+
     materials = []
     source_files = []
     errors = []
@@ -352,6 +387,7 @@ def _generate_new_knowledge(files):
             st.session_state.update_new_knowledge = []
             st.session_state.update_new_errors = errors
             st.session_state.update_new_logs = logs
+            st.session_state.update_stage = "new_error"
             return []
 
         material = "\n\n".join(materials)
@@ -369,11 +405,17 @@ def _generate_new_knowledge(files):
         fact_count = _fact_count(facts)
         if not facts or fact_count == 0:
             message = "新增资料未能生成有效 Facts，请检查文件内容或模型调用后重试。"
-            errors.append(message)
+            technical_error = "\n".join(
+                part
+                for part in [message, facts_output]
+                if part
+            )
+            errors.append(technical_error)
             _append_new_log(logs, "Facts", "失败", message)
             st.session_state.update_new_knowledge = []
             st.session_state.update_new_errors = errors
             st.session_state.update_new_logs = logs
+            st.session_state.update_stage = "new_error"
             return []
 
         _append_new_log(logs, "Facts", "成功", f"提取 {fact_count} 条事实")
@@ -391,16 +433,23 @@ def _generate_new_knowledge(files):
             st.session_state.update_new_knowledge = []
             st.session_state.update_new_errors = errors
             st.session_state.update_new_logs = logs
+            st.session_state.update_stage = "new_error"
             return []
 
         rag_count = _rag_count(rag)
         if not rag or rag_count == 0:
             message = "新增资料未能生成有效 RAG 知识，请检查文件内容或模型调用后重试。"
-            errors.append(message)
+            technical_error = "\n".join(
+                part
+                for part in [message, rag_output]
+                if part
+            )
+            errors.append(technical_error)
             _append_new_log(logs, "RAG", "失败", message)
             st.session_state.update_new_knowledge = []
             st.session_state.update_new_errors = errors
             st.session_state.update_new_logs = logs
+            st.session_state.update_stage = "new_error"
             return []
 
         _append_new_log(logs, "RAG", "成功", f"生成 {rag_count} 条知识")
@@ -410,6 +459,7 @@ def _generate_new_knowledge(files):
     st.session_state.update_new_knowledge = items
     st.session_state.update_new_errors = errors
     st.session_state.update_new_logs = logs
+    st.session_state.update_stage = "new_generated"
     return items
 
 
@@ -544,16 +594,17 @@ def render_update_page() -> None:
 
     with old_col:
         render_section_title("历史知识")
-        st.caption(
-            "支持导入已有 Excel 或 Word 知识资料。\n\n系统自动识别格式并恢复为统一知识对象。"
-        )
-        old_files = st.file_uploader(
-            "上传历史知识文件",
-            type=HISTORY_TYPES,
-            accept_multiple_files=True,
-            key="update_old_files",
-        )
-        _render_uploaded_files(old_files, "尚未上传历史知识文件。")
+        st.caption("支持导入已有 Excel 或 Word 知识资料。")
+        with st.container(height=360, border=False):
+            old_files = st.file_uploader(
+                "上传历史知识文件",
+                type=HISTORY_TYPES,
+                accept_multiple_files=True,
+                key="update_old_files",
+            )
+            if old_files:
+                st.session_state.update_old_file_names = [file.name for file in old_files]
+            _render_uploaded_files(old_files, "尚未上传历史知识文件。")
 
         restore_result = st.session_state.get("update_restore_result") or RestoreResult()
         deep_restore_history = bool(st.session_state.get("update_restore_ai_mode", False))
@@ -568,7 +619,11 @@ def render_update_page() -> None:
             st.session_state.update_restore_result = None
             st.session_state.update_restore_logs = []
 
-        if st.button("恢复历史知识", use_container_width=True, disabled=not bool(old_files)):
+        if st.button(
+            "恢复历史知识",
+            use_container_width=True,
+            disabled=not bool(old_files),
+        ):
             try:
                 st.session_state.update_restore_ai_mode = False
                 restore_result = _restore_history_files(old_files, deep_restore=False)
@@ -581,21 +636,28 @@ def render_update_page() -> None:
 
     with new_col:
         render_section_title("新增资料")
-        st.caption("上传本次新增或更新的产品资料。\n\n支持价格政策、车型配置及其他业务资料。")
-        new_files = st.file_uploader(
-            "上传新增资料",
-            type=NEW_MATERIAL_TYPES,
-            accept_multiple_files=True,
-            key="update_new_files",
-        )
-        _render_uploaded_files(new_files, "尚未上传新增资料。")
+        st.caption("上传本次新增或更新的产品资料。")
+        with st.container(height=360, border=False):
+            new_files = st.file_uploader(
+                "上传新增资料",
+                type=NEW_MATERIAL_TYPES,
+                accept_multiple_files=True,
+                key="update_new_files",
+            )
+            if new_files:
+                st.session_state.update_new_file_names = [file.name for file in new_files]
+            _render_uploaded_files(new_files, "尚未上传新增资料。")
 
-        if st.button("生成新增知识", use_container_width=True, disabled=not bool(new_files)):
+        if st.button(
+            "生成新增知识",
+            use_container_width=True,
+            disabled=not bool(new_files),
+        ):
             _generate_new_knowledge(new_files)
 
-    if old_files and restore_result.files:
+    if restore_result.files:
         _render_restore_result(restore_result)
-        if _should_offer_ai_restore(restore_result):
+        if old_files and _should_offer_ai_restore(restore_result):
             st.warning(
                 "检测到复杂文档\n\n"
                 "当前文档不是系统标准知识格式，仍有部分内容可能需要智能分析。"
@@ -618,14 +680,16 @@ def render_update_page() -> None:
                 if st.button("暂时仅使用已恢复知识", use_container_width=True):
                     st.info("已保留当前恢复结果，可继续上传新增资料。")
 
-    if new_files:
+    new_items = st.session_state.get("update_new_knowledge", [])
+    new_errors = st.session_state.get("update_new_errors", [])
+    new_logs = st.session_state.get("update_new_logs", [])
+    if new_items or new_errors or new_logs:
         _render_new_knowledge_result(
-            st.session_state.get("update_new_knowledge", []),
-            st.session_state.get("update_new_errors", []),
+            new_items,
+            new_errors,
         )
 
-    old_items = restore_result.items if old_files else []
-    new_items = st.session_state.get("update_new_knowledge", [])
+    old_items = restore_result.items
     can_diff = bool(old_items and new_items)
 
     st.divider()
@@ -634,6 +698,7 @@ def render_update_page() -> None:
 
     if st.button("开始差异分析", use_container_width=True, disabled=not can_diff):
         st.session_state.update_diff_result = compare(old_items, new_items)
+        st.session_state.update_stage = "diff_completed"
 
     if not can_diff:
         st.caption("恢复历史知识并生成新增知识后，可以开始差异分析。")

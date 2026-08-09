@@ -8,17 +8,10 @@ import streamlit as st
 
 
 def render_page_header(title: str, subtitle: str, eyebrow: str | None = None) -> None:
-    eyebrow_html = f'<div class="autorag-eyebrow">{eyebrow}</div>' if eyebrow else ""
-    st.markdown(
-        f"""
-        <div class="autorag-page-header">
-            {eyebrow_html}
-            <h1 class="autorag-title">{title}</h1>
-            <div class="autorag-subtitle">{subtitle}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if eyebrow:
+        st.caption(eyebrow)
+    st.title(title)
+    st.caption(subtitle)
 
 
 def render_section_title(title: str) -> None:

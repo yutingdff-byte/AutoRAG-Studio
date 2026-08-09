@@ -87,3 +87,4 @@ V0.8 Milestone 3C: LLM Semantic Judge strategy, based on real rule-diff bad case
 4. Review confirmation workflow.
 5. Merge and Update-mode export.
 6. QC-assisted fixing with user accept/ignore choices.
+7. IMAGE_DOMINANT_WORD: extract embedded DOCX images, reuse Qwen vision parsing, merge Material, then run the existing Facts/RAG flow.

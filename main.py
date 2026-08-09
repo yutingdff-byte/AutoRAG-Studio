@@ -314,6 +314,15 @@ def run_pipeline(
         rag
     )
 
+    if not isinstance(
+        qc,
+        dict
+    ) or not qc:
+
+        raise PipelineStepError(
+            "QC 质量检测失败，未返回有效结果，请稍后重试。"
+        )
+
 
     save_json(
         output_dir,
@@ -356,6 +365,15 @@ def run_pipeline(
         qc,
         excel_path
     )
+
+    if not isinstance(
+        excel_paths,
+        dict
+    ) or not excel_paths:
+
+        raise PipelineStepError(
+            "Excel 导出失败，未生成有效文件。"
+        )
 
 
     run_info = {

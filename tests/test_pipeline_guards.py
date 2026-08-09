@@ -32,3 +32,45 @@ def test_run_pipeline_stops_when_rag_is_none(monkeypatch, tmp_path):
 
     with pytest.raises(main.PipelineStepError, match="RAG 生成失败"):
         main.run_pipeline("测试资料")
+
+
+def test_run_pipeline_stops_when_qc_is_none(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        main,
+        "extract_facts",
+        lambda material: {"facts": [{"fact_id": "F001", "content": "事实"}]},
+    )
+    monkeypatch.setattr(
+        main,
+        "generate_rag",
+        lambda facts: {"rag_knowledge": [{"rag_id": "RAG-001", "answer": "回答"}]},
+    )
+    monkeypatch.setattr(main, "quality_check", lambda rag: None)
+    monkeypatch.setattr(
+        main,
+        "generate_excel",
+        lambda *args: pytest.fail("generate_excel should not run when QC is empty"),
+    )
+
+    with pytest.raises(main.PipelineStepError, match="QC 质量检测失败"):
+        main.run_pipeline("测试资料")
+
+
+def test_run_pipeline_stops_when_export_is_empty(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        main,
+        "extract_facts",
+        lambda material: {"facts": [{"fact_id": "F001", "content": "事实"}]},
+    )
+    monkeypatch.setattr(
+        main,
+        "generate_rag",
+        lambda facts: {"rag_knowledge": [{"rag_id": "RAG-001", "answer": "回答"}]},
+    )
+    monkeypatch.setattr(main, "quality_check", lambda rag: {"qc_report": {"result": "PASS"}})
+    monkeypatch.setattr(main, "generate_excel", lambda *args: None)
+
+    with pytest.raises(main.PipelineStepError, match="Excel 导出失败"):
+        main.run_pipeline("测试资料")

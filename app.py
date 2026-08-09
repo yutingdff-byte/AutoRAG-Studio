@@ -19,6 +19,8 @@ def initialize_session_state() -> None:
         "current_mode": "home",
         "generate_stage": "idle",
         "generate_result": None,
+        "generate_input_file_count": 0,
+        "generate_export_files": {},
         "update_stage": "idle",
         "update_diff_result": None,
         "update_restore_result": None,
@@ -28,6 +30,9 @@ def initialize_session_state() -> None:
         "update_restore_running": False,
         "update_new_knowledge": [],
         "update_new_errors": [],
+        "update_new_logs": [],
+        "update_old_file_names": [],
+        "update_new_file_names": [],
     }
 
     for key, value in defaults.items():
@@ -58,17 +63,6 @@ def render_navigation() -> None:
     )
 
     st.sidebar.caption(f"AutoRAG-Studio {APP_VERSION}")
-    with st.sidebar.expander("连接自检", expanded=False):
-        st.caption("用于排查当前 Streamlit 进程是否能连接 AI 服务。")
-        if st.button("测试 AI 服务连接", use_container_width=True):
-            from agents.llm_client import smoke_test_llm
-
-            result = smoke_test_llm()
-            if result.get("success"):
-                st.success("AI 服务连接正常。")
-            else:
-                st.error("AI 服务连接失败。")
-            st.json(result)
     st.sidebar.info("请勿在未经授权的公共云环境中上传客户敏感资料、未公开资料或含个人信息的数据。")
 
 
