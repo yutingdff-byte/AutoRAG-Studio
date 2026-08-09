@@ -11,7 +11,7 @@ from knowledge.adapter import knowledge_to_preview_rows
 from knowledge.restore_manager import RestoreResult, get_restore_cache_key, restore
 from knowledge.adapter import rag_to_knowledge
 from diff.engine import compare
-from diff.models import ChangeType, DiffRunResult, DetectedUpdateScope
+from diff.models import ChangeType, DiffResult, DiffRunResult, DetectedUpdateScope
 from diff.reasons import change_type_label, review_reason_label
 from ui.components import (
     render_file_card,
@@ -506,17 +506,58 @@ def _render_new_knowledge_result(items, errors) -> None:
 def _render_scope(scope: DetectedUpdateScope) -> None:
     render_section_title("系统识别本轮资料范围")
     st.info(scope.summary or "未识别到明确更新范围。")
+
+    def preview_values(values: list[str], limit: int = 3) -> str:
+        values = [str(value) for value in values if value]
+        if not values:
+            return "—"
+        preview = " / ".join(values[:limit])
+        if len(values) > limit:
+            preview += f" +{len(values) - limit}"
+        return preview
+
+    def knowledge_type_label(value: str) -> str:
+        return {
+            "product": "车型配置",
+            "price": "价格",
+            "policy": "营销政策",
+            "store": "门店政策",
+            "marketing": "活动政策",
+            "finance": "金融政策",
+            "general": "通用知识",
+            "static": "车型配置",
+            "dynamic": "价格政策",
+        }.get(str(value or "").lower(), str(value or ""))
+
+    type_values = [knowledge_type_label(value) for value in scope.knowledge_types]
     render_metric_cards(
         [
-            ("涉及品牌", "、".join(scope.brands) or "—", ""),
-            ("涉及车型", "、".join(scope.models) or "—", ""),
-            ("主要分类", "、".join(scope.categories) or "—", ""),
-            ("知识类型", "、".join(scope.knowledge_types) or "—", ""),
+            ("涉及品牌", len(scope.brands), preview_values(scope.brands)),
+            ("涉及车型", len(scope.models), preview_values(scope.models)),
+            ("主要分类", len(scope.categories), preview_values(scope.categories)),
+            ("知识类型", len(type_values), preview_values(type_values)),
         ]
     )
+    with st.expander("展开查看全部范围", expanded=False):
+        st.dataframe(
+            [
+                {"范围": "涉及品牌", "内容": "、".join(scope.brands) or "—"},
+                {"范围": "涉及车型", "内容": "、".join(scope.models) or "—"},
+                {"范围": "主要分类", "内容": "、".join(scope.categories) or "—"},
+                {"范围": "知识类型", "内容": "、".join(type_values) or "—"},
+                {"范围": "来源文件", "内容": "、".join(scope.source_files) or "—"},
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
     not_obvious = scope.metadata.get("not_obvious_categories", [])
     if not_obvious:
         st.caption("未明显涉及：" + "、".join(not_obvious))
+
+
+def _result_model(result: DiffResult) -> str:
+    item = result.new_item or result.old_item
+    return item.model if item and item.model else "未指定"
 
 
 def _diff_rows(results, change_type: ChangeType | None = None) -> list[dict]:
@@ -528,18 +569,49 @@ def _diff_rows(results, change_type: ChangeType | None = None) -> list[dict]:
         new_item = result.new_item
         rows.append(
             {
+                "车型": _result_model(result),
                 "问题": (new_item.question if new_item else old_item.question if old_item else ""),
                 "原回答": old_item.answer if old_item else "",
                 "新回答": new_item.answer if new_item else "",
                 "状态": change_type_label(result.change_type),
-                "变化说明": result.change_summary,
-                "匹配方式": result.match_method.value,
-                "置信度": result.overall_confidence,
-                "待确认原因": review_reason_label(result.review_reason),
-                "来源文件": "、".join((new_item or old_item).source_files) if (new_item or old_item) else "",
+                "变化原因": result.change_summary or result.reason_text or review_reason_label(result.review_reason),
             }
         )
     return rows
+
+
+def _diff_debug_rows(results, change_type: ChangeType | None = None) -> list[dict]:
+    rows = []
+    for result in results:
+        if change_type and result.change_type != change_type:
+            continue
+        item = result.new_item or result.old_item
+        rows.append(
+            {
+                "diff_id": result.diff_id,
+                "状态": result.change_type.value,
+                "匹配方式": result.match_method.value,
+                "匹配置信度": result.match_confidence,
+                "变化置信度": result.change_confidence,
+                "总体置信度": result.overall_confidence,
+                "reason_code": result.reason_code,
+                "待确认原因": result.review_reason.value if result.review_reason else "",
+                "来源文件": "、".join(item.source_files) if item else "",
+                "metadata": result.metadata,
+            }
+        )
+    return rows
+
+
+def _diff_column_config() -> dict:
+    return {
+        "车型": st.column_config.TextColumn("车型", width="small"),
+        "问题": st.column_config.TextColumn("问题", width="large"),
+        "原回答": st.column_config.TextColumn("原回答", width="large"),
+        "新回答": st.column_config.TextColumn("新回答", width="large"),
+        "状态": st.column_config.TextColumn("状态", width="small"),
+        "变化原因": st.column_config.TextColumn("变化原因", width="medium"),
+    }
 
 
 def _render_diff_result(result: DiffRunResult) -> None:
@@ -568,7 +640,18 @@ def _render_diff_result(result: DiffRunResult) -> None:
         with tab:
             rows = _diff_rows(result.results, change_type)
             if rows:
-                st.dataframe(rows, use_container_width=True, hide_index=True)
+                st.dataframe(
+                    rows,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=_diff_column_config(),
+                )
+                with st.expander("查看识别详情", expanded=False):
+                    st.dataframe(
+                        _diff_debug_rows(result.results, change_type),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
             else:
                 st.caption("暂无数据。")
 
