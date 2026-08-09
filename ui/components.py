@@ -52,11 +52,16 @@ def render_feature_card(
         "ready": "autorag-status-ready",
         "building": "autorag-status-building",
     }.get(status, "")
+    status_html = (
+        f'<span class="autorag-status {status_class}">{status_label}</span>'
+        if status_label
+        else ""
+    )
     st.markdown(
         f"""
         <div class="autorag-card">
             <div class="autorag-card-title">{title}</div>
-            <span class="autorag-status {status_class}">{status_label}</span>
+            {status_html}
             <div class="autorag-card-body">{body}</div>
             <div class="autorag-chip-row">{tag_html}</div>
         </div>

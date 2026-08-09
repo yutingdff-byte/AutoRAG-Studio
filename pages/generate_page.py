@@ -1030,8 +1030,7 @@ def render_parse_preview(records):
 def render_generate_page() -> None:
     render_page_header(
         "新建知识库 Generate",
-        "上传原始资料，自动提取事实、生成 RAG 知识并完成质量检查。",
-        eyebrow="Generate 可用"
+        "上传原始资料，自动提取事实、生成 RAG 知识并完成质量检查。"
     )
 
     render_step_navigation(

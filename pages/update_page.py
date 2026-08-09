@@ -582,57 +582,93 @@ def _result_model(result: DiffResult) -> str:
     return item.model if item and item.model else "未指定"
 
 
-def _diff_rows(results, change_type: ChangeType | None = None) -> list[dict]:
+def _review_reason_text(result: DiffResult) -> str:
+    reason = review_reason_label(result.review_reason)
+    if result.review_reason:
+        return reason
+    return result.change_summary or result.reason_text or "需要人工确认后再处理。"
+
+
+def _diff_rows(results, change_type: ChangeType) -> list[dict]:
     rows = []
     for result in results:
-        if change_type and result.change_type != change_type:
+        if result.change_type != change_type:
             continue
         old_item = result.old_item
         new_item = result.new_item
-        rows.append(
-            {
-                "车型": _result_model(result),
-                "问题": (new_item.question if new_item else old_item.question if old_item else ""),
-                "原回答": old_item.answer if old_item else "",
-                "新回答": new_item.answer if new_item else "",
-                "状态": change_type_label(result.change_type),
-                "变化原因": result.change_summary or result.reason_text or review_reason_label(result.review_reason),
-            }
-        )
+        question = new_item.question if new_item else old_item.question if old_item else ""
+        category = (new_item.category if new_item else old_item.category if old_item else "") or ""
+
+        if change_type == ChangeType.ADDED:
+            rows.append(
+                {
+                    "车型": _result_model(result),
+                    "问题": question,
+                    "新增答案": new_item.answer if new_item else "",
+                    "分类": category,
+                }
+            )
+        elif change_type == ChangeType.UPDATED:
+            rows.append(
+                {
+                    "车型": _result_model(result),
+                    "问题": question,
+                    "原答案": old_item.answer if old_item else "",
+                    "新答案": new_item.answer if new_item else "",
+                    "分类": category,
+                }
+            )
+        elif change_type == ChangeType.UNCHANGED:
+            rows.append(
+                {
+                    "车型": _result_model(result),
+                    "问题": question,
+                    "当前答案": old_item.answer if old_item else new_item.answer if new_item else "",
+                    "分类": category,
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "车型": _result_model(result),
+                    "问题": question,
+                    "原答案": old_item.answer if old_item else "",
+                    "候选新答案": new_item.answer if new_item else "",
+                    "需要确认的原因": _review_reason_text(result),
+                }
+            )
     return rows
 
 
-def _diff_debug_rows(results, change_type: ChangeType | None = None) -> list[dict]:
-    rows = []
-    for result in results:
-        if change_type and result.change_type != change_type:
-            continue
-        item = result.new_item or result.old_item
-        rows.append(
-            {
-                "diff_id": result.diff_id,
-                "状态": result.change_type.value,
-                "匹配方式": result.match_method.value,
-                "匹配置信度": result.match_confidence,
-                "变化置信度": result.change_confidence,
-                "总体置信度": result.overall_confidence,
-                "reason_code": result.reason_code,
-                "待确认原因": result.review_reason.value if result.review_reason else "",
-                "来源文件": "、".join(item.source_files) if item else "",
-                "metadata": result.metadata,
-            }
-        )
-    return rows
-
-
-def _diff_column_config() -> dict:
+def _diff_column_config(change_type: ChangeType) -> dict:
+    if change_type == ChangeType.ADDED:
+        return {
+            "车型": st.column_config.TextColumn("车型", width="small"),
+            "问题": st.column_config.TextColumn("问题", width="large"),
+            "新增答案": st.column_config.TextColumn("新增答案", width="large"),
+            "分类": st.column_config.TextColumn("分类", width="small"),
+        }
+    if change_type == ChangeType.UPDATED:
+        return {
+            "车型": st.column_config.TextColumn("车型", width="small"),
+            "问题": st.column_config.TextColumn("问题", width="medium"),
+            "原答案": st.column_config.TextColumn("原答案", width="large"),
+            "新答案": st.column_config.TextColumn("新答案", width="large"),
+            "分类": st.column_config.TextColumn("分类", width="small"),
+        }
+    if change_type == ChangeType.UNCHANGED:
+        return {
+            "车型": st.column_config.TextColumn("车型", width="small"),
+            "问题": st.column_config.TextColumn("问题", width="large"),
+            "当前答案": st.column_config.TextColumn("当前答案", width="large"),
+            "分类": st.column_config.TextColumn("分类", width="small"),
+        }
     return {
         "车型": st.column_config.TextColumn("车型", width="small"),
-        "问题": st.column_config.TextColumn("问题", width="large"),
-        "原回答": st.column_config.TextColumn("原回答", width="large"),
-        "新回答": st.column_config.TextColumn("新回答", width="large"),
-        "状态": st.column_config.TextColumn("状态", width="small"),
-        "变化原因": st.column_config.TextColumn("变化原因", width="medium"),
+        "问题": st.column_config.TextColumn("问题", width="medium"),
+        "原答案": st.column_config.TextColumn("原答案", width="large"),
+        "候选新答案": st.column_config.TextColumn("候选新答案", width="large"),
+        "需要确认的原因": st.column_config.TextColumn("需要确认的原因", width="large"),
     }
 
 
@@ -650,13 +686,12 @@ def _render_diff_result(result: DiffRunResult) -> None:
         ]
     )
 
-    tabs = st.tabs(["全部", "新增", "更新", "未变化", "待确认"])
+    tabs = st.tabs(["新增", "更新", "待确认", "未变化"])
     tab_specs = [
-        (tabs[0], None),
-        (tabs[1], ChangeType.ADDED),
-        (tabs[2], ChangeType.UPDATED),
+        (tabs[0], ChangeType.ADDED),
+        (tabs[1], ChangeType.UPDATED),
+        (tabs[2], ChangeType.REVIEW_REQUIRED),
         (tabs[3], ChangeType.UNCHANGED),
-        (tabs[4], ChangeType.REVIEW_REQUIRED),
     ]
     for tab, change_type in tab_specs:
         with tab:
@@ -666,14 +701,8 @@ def _render_diff_result(result: DiffRunResult) -> None:
                     rows,
                     use_container_width=True,
                     hide_index=True,
-                    column_config=_diff_column_config(),
+                    column_config=_diff_column_config(change_type),
                 )
-                with st.expander("查看识别详情", expanded=False):
-                    st.dataframe(
-                        _diff_debug_rows(result.results, change_type),
-                        use_container_width=True,
-                        hide_index=True,
-                    )
             else:
                 st.caption("暂无数据。")
 
@@ -774,44 +803,57 @@ def _render_review_center(result: DiffRunResult) -> None:
     updated = _reviewable_results(result, ChangeType.UPDATED)
     required = _reviewable_results(result, ChangeType.REVIEW_REQUIRED)
 
-    render_section_title("人工确认")
+    render_section_title("生成新版知识库")
     render_metric_cards(
         [
-            ("需要处理", len(reviewable), "新增、更新和待确认知识"),
+            ("本轮变化", len(reviewable), "新增、更新和待确认知识"),
             ("新增", len(added), "默认加入新版知识库"),
             ("更新", len(updated), "默认使用新答案"),
             ("待确认", len(required), "默认保留原知识"),
         ]
     )
 
-    bulk_col_1, bulk_col_2, status_col = st.columns([1, 1, 2])
-    with bulk_col_1:
-        if st.button("全部接受新增", use_container_width=True, disabled=not bool(added)):
-            for item in added:
-                decisions[item.diff_id] = decision_from_label(item, "加入新版知识库")
-            st.session_state.update_review_decisions = decisions
-    with bulk_col_2:
-        if st.button("全部接受更新", use_container_width=True, disabled=not bool(updated)):
-            for item in updated:
-                decisions[item.diff_id] = decision_from_label(item, "使用新答案")
-            st.session_state.update_review_decisions = decisions
-    with status_col:
-        st.caption("未变化知识会自动保留；待确认知识未操作时默认保留原知识。")
+    if required:
+        st.warning(
+            f"有 {len(required)} 条知识需要确认；未处理的待确认知识本次会继续保留原知识。"
+        )
+        with st.expander("处理待确认知识", expanded=True):
+            for item in required:
+                _render_review_item(item, decisions, "required_main")
+    else:
+        st.success(
+            f"系统已根据默认规则处理 {len(added) + len(updated)} 条变化："
+            f"新增知识 {len(added)} 条将自动加入，更新知识 {len(updated)} 条将采用新答案，"
+            f"未变化知识 {result.unchanged_count} 条继续保留。"
+        )
 
-    tabs = st.tabs(["全部待处理", "新增", "更新", "待确认"])
-    tab_specs = [
-        (tabs[0], "all", reviewable),
-        (tabs[1], "added", added),
-        (tabs[2], "updated", updated),
-        (tabs[3], "required", required),
-    ]
-    for tab, key_scope, items in tab_specs:
-        with tab:
-            if not items:
-                st.caption("暂无需要处理的知识。")
-                continue
-            for item in items:
-                _render_review_item(item, decisions, key_scope)
+    with st.expander("查看并调整全部变化", expanded=False):
+        bulk_col_1, bulk_col_2 = st.columns(2)
+        with bulk_col_1:
+            if st.button("全部接受新增", use_container_width=True, disabled=not bool(added)):
+                for item in added:
+                    decisions[item.diff_id] = decision_from_label(item, "加入新版知识库")
+                st.session_state.update_review_decisions = decisions
+        with bulk_col_2:
+            if st.button("全部接受更新", use_container_width=True, disabled=not bool(updated)):
+                for item in updated:
+                    decisions[item.diff_id] = decision_from_label(item, "使用新答案")
+                st.session_state.update_review_decisions = decisions
+
+        tabs = st.tabs(["全部", "新增", "更新", "待确认"])
+        tab_specs = [
+            (tabs[0], "all", reviewable),
+            (tabs[1], "added", added),
+            (tabs[2], "updated", updated),
+            (tabs[3], "required", required),
+        ]
+        for tab, key_scope, items in tab_specs:
+            with tab:
+                if not items:
+                    st.caption("暂无可调整的知识。")
+                    continue
+                for item in items:
+                    _render_review_item(item, decisions, key_scope)
 
     if st.button("生成新版知识库", use_container_width=True):
         merge_result = merge_knowledge(result, decisions)
@@ -954,7 +996,7 @@ def _update_steps() -> list[str]:
         "2 上传新增资料": bool(st.session_state.get("update_new_file_names")),
         "3 恢复统一知识": bool((st.session_state.get("update_restore_result") or RestoreResult()).items),
         "4 差异分析": bool(st.session_state.get("update_diff_result")),
-        "5 人工确认": bool(st.session_state.get("update_review_completed")),
+        "5 生成新版": bool(st.session_state.get("update_review_completed")),
         "6 导出": bool(st.session_state.get("update_export_files")),
     }
     labels = []
