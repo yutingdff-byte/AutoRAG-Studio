@@ -15,10 +15,7 @@ def render_page_header(title: str, subtitle: str, eyebrow: str | None = None) ->
 
 
 def render_section_title(title: str) -> None:
-    st.markdown(
-        f'<div class="autorag-section-title">{title}</div>',
-        unsafe_allow_html=True,
-    )
+    st.subheader(title)
 
 
 def render_status_badge(label: str, status: str = "default") -> None:
@@ -47,27 +44,12 @@ def render_feature_card(
     status_label: str,
     status: str,
 ) -> None:
-    tag_html = "".join(f'<span class="autorag-chip">{tag}</span>' for tag in tags)
-    status_class = {
-        "ready": "autorag-status-ready",
-        "building": "autorag-status-building",
-    }.get(status, "")
-    status_html = (
-        f'<span class="autorag-status {status_class}">{status_label}</span>'
-        if status_label
-        else ""
-    )
-    st.markdown(
-        f"""
-        <div class="autorag-card">
-            <div class="autorag-card-title">{title}</div>
-            {status_html}
-            <div class="autorag-card-body">{body}</div>
-            <div class="autorag-chip-row">{tag_html}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container(border=True):
+        st.subheader(title)
+        if status_label:
+            st.caption(status_label)
+        st.write(body)
+        st.caption(" · ".join(str(tag) for tag in tags))
 
 
 def render_metric_cards(metrics: Sequence[tuple[str, str | int, str]]) -> None:
@@ -95,8 +77,8 @@ def render_file_card(file_name: str, file_type: str, file_size: int | None = Non
     )
 
 
-def render_footer(version: str) -> None:
-    st.markdown(
-        f'<div class="autorag-footer">AutoRAG-Studio {version}</div>',
-        unsafe_allow_html=True,
-    )
+def render_footer(version: str | None = None) -> None:
+    text = "AutoRAG-Studio"
+    if version:
+        text = f"{text} {version}"
+    st.caption(text)

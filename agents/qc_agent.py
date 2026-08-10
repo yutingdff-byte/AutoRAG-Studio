@@ -67,6 +67,7 @@ STRONG_DYNAMIC_POLICY_KEYWORDS = [
     "截止",
     "有效期",
     "下定",
+    "下订",
     "订车",
     "大定",
     "锁单",
@@ -84,6 +85,19 @@ STRONG_DYNAMIC_POLICY_KEYWORDS = [
     "置换补贴",
     "选装减免",
     "指定现车礼"
+]
+
+
+MARKETING_POLICY_SOURCE_KEYWORDS = [
+    "营销政策",
+    "活动政策",
+    "权益政策",
+    "购车政策",
+    "销售政策",
+    "优惠政策",
+    "金融政策",
+    "促销",
+    "限时权益"
 ]
 
 
@@ -252,11 +266,35 @@ def get_question_text(item):
 
 def build_item_text(item):
 
+    source_files = item.get(
+        "source_files",
+        []
+    )
+
+    if isinstance(
+        source_files,
+        list
+    ):
+
+        source_text = " ".join(
+            str(source_file)
+            for source_file in source_files
+            if source_file
+        )
+
+    else:
+
+        source_text = str(
+            source_files or ""
+        )
+
     return (
         f"{item.get('category', '')} "
         f"{item.get('module', '')} "
         f"{get_question_text(item)} "
-        f"{item.get('answer', '')}"
+        f"{item.get('answer', '')} "
+        f"{item.get('source_file', '')} "
+        f"{source_text}"
     )
 
 
@@ -285,9 +323,24 @@ def has_dynamic_policy_signal(item_text):
         has_explicit_date
         or any(
             keyword in item_text
+            for keyword in MARKETING_POLICY_SOURCE_KEYWORDS
+        )
+        or any(
+            keyword in item_text
             for keyword in STRONG_DYNAMIC_POLICY_KEYWORDS
         )
     )
+
+
+def is_static_dynamic_issue(issue):
+
+    return issue.get(
+        "issue_type",
+        ""
+    ) in [
+        "静态动态分类可能错误",
+        "静态动态分类错误"
+    ]
 
 
 def extract_policy_periods(item_text):
@@ -484,6 +537,20 @@ def rule_based_quality_checks(rag_data, qc_data):
         )
     }
 
+    rag_by_id = {
+        item.get(
+            "rag_id"
+        ): item
+        for item in rag_list
+        if isinstance(
+            item,
+            dict
+        )
+        and item.get(
+            "rag_id"
+        )
+    }
+
     qc_data[
         "issues"
     ] = [
@@ -504,6 +571,24 @@ def rule_based_quality_checks(rag_data, qc_data):
                 "rag_id"
             )
             in exportable_ids
+        )
+        and (
+            not is_static_dynamic_issue(
+                issue
+            )
+            or (
+                issue.get(
+                    "rag_id"
+                )
+                and should_report_static_dynamic_mismatch(
+                    rag_by_id.get(
+                        issue.get(
+                            "rag_id"
+                        ),
+                        {}
+                    )
+                )
+            )
         )
     ]
 

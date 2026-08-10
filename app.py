@@ -21,6 +21,7 @@ def initialize_session_state() -> None:
         "generate_result": None,
         "generate_input_file_count": 0,
         "generate_export_files": {},
+        "generate_active_section": "overview",
         "update_stage": "idle",
         "update_diff_result": None,
         "update_restore_result": None,
@@ -66,7 +67,6 @@ def render_navigation() -> None:
         on_change=sync_navigation_mode,
     )
 
-    st.sidebar.caption(f"AutoRAG-Studio {APP_VERSION}")
     st.sidebar.info("请勿在未经授权的公共云环境中上传客户敏感资料、未公开资料或含个人信息的数据。")
 
 
@@ -89,7 +89,7 @@ def main() -> None:
     load_global_styles()
     render_navigation()
     render_current_page()
-    render_footer(APP_VERSION)
+    render_footer()
 
 
 if __name__ == "__main__":

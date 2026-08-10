@@ -904,6 +904,25 @@ SUPPORTED_UPLOAD_TYPES = [
 ]
 
 
+GENERATE_RESULT_SECTIONS = {
+    "overview": "生成概览",
+    "static_knowledge": "车型配置知识",
+    "dynamic_knowledge": "价格政策知识",
+    "check_center": "知识检查中心",
+    "qc_report": "QC报告",
+    "download": "下载",
+}
+
+
+def sync_generate_active_section():
+    st.session_state[
+        "generate_active_section"
+    ] = st.session_state.get(
+        "_generate_active_section_widget",
+        "overview"
+    )
+
+
 MAX_UPLOAD_FILE_COUNT = 100
 
 
@@ -1455,18 +1474,39 @@ def render_generate_page() -> None:
                 []
             )
 
-            tabs = st.tabs(
-                [
-                    "生成概览",
-                    "车型配置知识",
-                    "价格政策知识",
-                    "知识检查中心",
-                    "QC报告",
-                    "下载"
-                ]
+            section_keys = list(
+                GENERATE_RESULT_SECTIONS.keys()
             )
 
-            with tabs[0]:
+            if st.session_state.get(
+                "generate_active_section"
+            ) not in section_keys:
+
+                st.session_state[
+                    "generate_active_section"
+                ] = "overview"
+
+            st.session_state[
+                "_generate_active_section_widget"
+            ] = st.session_state[
+                "generate_active_section"
+            ]
+
+            st.radio(
+                "生成结果导航",
+                options=section_keys,
+                format_func=lambda value: GENERATE_RESULT_SECTIONS[value],
+                key="_generate_active_section_widget",
+                on_change=sync_generate_active_section,
+                horizontal=True,
+                label_visibility="collapsed",
+            )
+
+            active_section = st.session_state[
+                "generate_active_section"
+            ]
+
+            if active_section == "overview":
 
                 st.subheader(
                     f"{project_info['brand']} {project_info['model']}"
@@ -1596,7 +1636,7 @@ def render_generate_page() -> None:
                         )
                     )
 
-            with tabs[1]:
+            elif active_section == "static_knowledge":
 
                 st.subheader(
                     "车型配置知识"
@@ -1619,7 +1659,7 @@ def render_generate_page() -> None:
                     key="static_knowledge_table"
                 )
 
-            with tabs[2]:
+            elif active_section == "dynamic_knowledge":
 
                 st.subheader(
                     "价格政策知识"
@@ -1643,7 +1683,7 @@ def render_generate_page() -> None:
                     key="dynamic_knowledge_table"
                 )
 
-            with tabs[3]:
+            elif active_section == "check_center":
 
                 st.subheader(
                     "知识检查中心"
@@ -1748,7 +1788,7 @@ def render_generate_page() -> None:
                             key="update_notice_table"
                         )
 
-            with tabs[4]:
+            elif active_section == "qc_report":
 
                 st.subheader(
                     "QC报告"
@@ -1843,7 +1883,7 @@ def render_generate_page() -> None:
                     key="qc_issue_table"
                 )
 
-            with tabs[5]:
+            elif active_section == "download":
 
                 st.subheader(
                     "Excel下载"

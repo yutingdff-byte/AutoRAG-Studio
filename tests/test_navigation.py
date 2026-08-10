@@ -31,3 +31,28 @@ def test_home_card_navigation_uses_widget_callbacks():
     app.radio[0].set_value("home").run(timeout=60)
     assert app.session_state["current_mode"] == "home"
     assert app.radio[0].value == "home"
+
+
+def test_home_page_hides_dev_status_and_raw_card_html():
+    app = AppTest.from_file("../app.py", default_timeout=60)
+    app.run(timeout=60)
+
+    user_markdown = [
+        markdown.value
+        for markdown in app.markdown
+        if not markdown.value.strip().startswith("<style>")
+    ]
+    visible_text = "\n".join(
+        [
+            *user_markdown,
+            *[caption.value for caption in app.caption],
+            *[subheader.value for subheader in app.subheader],
+        ]
+    )
+
+    assert "V0.8.0-dev" not in visible_text
+    assert "可用" not in visible_text
+    assert "建设中" not in visible_text
+    assert "autorag-card-body" not in visible_text
+    assert "<div class=\"autorag-card\"" not in visible_text
+    assert not app.exception

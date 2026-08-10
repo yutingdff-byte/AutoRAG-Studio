@@ -7,6 +7,10 @@ from merge.engine import MergeResult
 from review.decisions import build_default_decisions
 
 
+def _radio_by_key(app, key: str):
+    return next(radio for radio in app.radio if getattr(radio, "key", None) == key)
+
+
 def _knowledge(knowledge_id: str, answer: str) -> KnowledgeItem:
     return KnowledgeItem(
         knowledge_id=knowledge_id,
@@ -52,14 +56,17 @@ def test_generate_result_survives_navigation_reruns():
         "dynamic": {"file_name": "policy.xlsx", "data": b"policy"},
     }
 
-    app.radio[0].set_value("generate").run(timeout=60)
-    assert any(tab.label == "下载" for tab in app.tabs)
+    _radio_by_key(app, "navigation_mode").set_value("generate").run(timeout=60)
+    assert _radio_by_key(app, "_generate_active_section_widget").value == "overview"
     assert app.session_state["generate_result"]["run_id"] == "session-test"
 
-    app.radio[0].set_value("home").run(timeout=60)
-    app.radio[0].set_value("generate").run(timeout=60)
+    _radio_by_key(app, "_generate_active_section_widget").set_value("dynamic_knowledge").run(timeout=60)
+    assert app.session_state["generate_active_section"] == "dynamic_knowledge"
 
-    assert any(tab.label == "下载" for tab in app.tabs)
+    _radio_by_key(app, "navigation_mode").set_value("home").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("generate").run(timeout=60)
+
+    assert app.session_state["generate_active_section"] == "dynamic_knowledge"
     assert app.session_state["generate_export_files"]["static"]["data"] == b"config"
     assert not app.exception
 
@@ -86,13 +93,13 @@ def test_update_results_and_diff_survive_navigation_reruns():
     app.session_state["update_new_knowledge"] = [new_item]
     app.session_state["update_diff_result"] = compare([old_item], [new_item])
 
-    app.radio[0].set_value("update").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
     assert app.session_state["update_restore_result"].restored_count == 1
     assert app.session_state["update_diff_result"].total_count == 1
     assert any(tab.label == "全部" for tab in app.tabs)
 
-    app.radio[0].set_value("home").run(timeout=60)
-    app.radio[0].set_value("update").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("home").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
 
     assert app.session_state["update_restore_result"].restored_count == 1
     assert len(app.session_state["update_new_knowledge"]) == 1
@@ -120,12 +127,12 @@ def test_update_review_merge_export_survive_navigation_reruns():
         "dynamic": {"file_name": "policy.xlsx", "data": b"policy"},
     }
 
-    app.radio[0].set_value("update").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
     assert app.session_state["update_review_completed"]
     assert app.session_state["update_export_files"]["dynamic"]["data"] == b"policy"
 
-    app.radio[0].set_value("home").run(timeout=60)
-    app.radio[0].set_value("update").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("home").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
 
     assert app.session_state["update_merge_result"].updated_accepted == 1
     assert app.session_state["update_export_files"]["static"]["data"] == b"config"
