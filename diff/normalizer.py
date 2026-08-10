@@ -6,6 +6,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
+from diff.intent_normalizer import normalize_intents
 from knowledge.models import KnowledgeItem
 
 
@@ -58,6 +59,7 @@ class NormalizedKnowledge:
     topic: str
     signature: str
     numbers: list[str]
+    intents: set[str]
 
 
 def normalize_text(value: str | None) -> str:
@@ -82,12 +84,15 @@ def normalize_answer_text(value: str | None) -> str:
     text = re.sub(r"(\d+),(\d{3})(?=元)", r"\1\2", text)
     text = re.sub(r"(\d+)\s*元", r"\1元", text)
     text = text.replace("人民币", "")
+    text = re.sub(r"(\d+(?:\.\d+)?)万元", lambda match: f"{round(float(match.group(1)) * 10000):g}元", text)
+    text = re.sub(r"(\d+(?:\.\d+)?)万(?!(?:公里|千米))", lambda match: f"{round(float(match.group(1)) * 10000):g}", text)
+    text = text.replace("百分之十", "10%").replace("百分之三点八", "3.8%")
     text = re.sub(r"[，。,.!！;；]", "", text)
     return text
 
 
 def extract_numbers(value: str | None) -> list[str]:
-    text = normalize_text(value)
+    text = normalize_answer_text(value)
     return re.findall(r"\d+(?:\.\d+)?%?|\d+(?:\.\d+)?万?元|\d+(?:\.\d+)?公里", text)
 
 
@@ -135,4 +140,5 @@ def normalize_item(item: KnowledgeItem) -> NormalizedKnowledge:
         topic=topic,
         signature=build_signature(item, topic),
         numbers=extract_numbers(item.answer),
+        intents=normalize_intents(item.question, item.category, item.module, item.knowledge_type, item.answer),
     )
