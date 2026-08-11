@@ -74,7 +74,10 @@ def merge_knowledge(diff_result: DiffRunResult, decisions: dict[str, ReviewDecis
 
     for diff_item in diff_result.results:
         if diff_item.change_type == ChangeType.UNCHANGED:
-            if diff_item.old_item:
+            decision = decisions.get(diff_item.diff_id)
+            if decision and decision.decision == ReviewDecisionType.REMOVE and decision.metadata.get("delete_confirmed"):
+                result.removed += 1
+            elif diff_item.old_item:
                 final_items.append(diff_item.old_item)
                 result.kept_old += 1
             continue
@@ -94,6 +97,9 @@ def merge_knowledge(diff_result: DiffRunResult, decisions: dict[str, ReviewDecis
             continue
 
         if decision.decision == ReviewDecisionType.ACCEPT_NEW:
+            if decision.metadata.get("keep_old_with_new") and diff_item.old_item:
+                final_items.append(diff_item.old_item)
+                result.kept_old += 1
             if diff_item.new_item:
                 final_items.append(diff_item.new_item)
                 if diff_item.change_type == ChangeType.ADDED:
@@ -111,4 +117,3 @@ def merge_knowledge(diff_result: DiffRunResult, decisions: dict[str, ReviewDecis
 
     result.duplicate_warnings = _duplicate_warnings(final_items)
     return result
-

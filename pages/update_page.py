@@ -20,6 +20,13 @@ from generator.excel_generator import generate_excel
 from merge.engine import MergeResult, merge_knowledge
 from review.decisions import build_default_decisions, decision_from_label
 from review.models import ReviewDecision, ReviewDecisionType
+from review.relation_decisions import (
+    apply_relation_decisions,
+    build_default_relation_decisions,
+    default_relation_decision,
+)
+from review.relation_grouper import group_review_required
+from review.relation_models import RelationDecision, RelationDecisionType, RelationGroup, RelationGroupingResult, RelationType
 from ui.components import (
     render_file_card,
     render_metric_cards,
@@ -35,6 +42,8 @@ NEW_MATERIAL_TYPES = ["xlsx", "xls", "docx", "pdf", "txt", "png", "jpg", "jpeg",
 
 def _reset_update_review_state() -> None:
     st.session_state.update_review_decisions = {}
+    st.session_state.update_relation_groups = None
+    st.session_state.update_relation_decisions = {}
     st.session_state.update_review_completed = False
     st.session_state.update_merge_result = None
     st.session_state.update_export_files = {}
@@ -730,6 +739,29 @@ def _ensure_review_decisions(result: DiffRunResult) -> dict[str, ReviewDecision]
     return decisions
 
 
+def _ensure_relation_grouping(result: DiffRunResult) -> RelationGroupingResult:
+    grouping = st.session_state.get("update_relation_groups")
+    source_key = "|".join(item.diff_id for item in result.results)
+    if not grouping or st.session_state.get("update_relation_groups_source") != source_key:
+        grouping = group_review_required(result)
+        st.session_state.update_relation_groups = grouping
+        st.session_state.update_relation_groups_source = source_key
+        st.session_state.update_relation_decisions = {}
+    return grouping
+
+
+def _ensure_relation_decisions(groups: list[RelationGroup]) -> dict[str, RelationDecision]:
+    decisions = st.session_state.setdefault("update_relation_decisions", {})
+    defaults = build_default_relation_decisions(groups)
+    for group_id, decision in defaults.items():
+        decisions.setdefault(group_id, decision)
+    for group_id in list(decisions):
+        if group_id not in defaults:
+            decisions.pop(group_id, None)
+    st.session_state.update_relation_decisions = decisions
+    return decisions
+
+
 def _decision_label(result: DiffResult, decision: ReviewDecision) -> str:
     if result.change_type == ChangeType.ADDED:
         return "不加入" if decision.decision == ReviewDecisionType.SKIP else "加入新版知识库"
@@ -796,12 +828,144 @@ def _render_review_item(result: DiffResult, decisions: dict[str, ReviewDecision]
         st.session_state.update_review_decisions = decisions
 
 
+def _relation_type_label(relation_type: RelationType) -> str:
+    if relation_type == RelationType.GENERAL_TO_DETAIL:
+        return "综合知识被拆分"
+    if relation_type == RelationType.DETAIL_TO_GENERAL:
+        return "细分知识被合并"
+    if relation_type == RelationType.ONE_TO_MANY:
+        return "一条历史知识对应多条新知识"
+    if relation_type == RelationType.MANY_TO_ONE:
+        return "多条历史知识对应一条新知识"
+    return "复杂知识关系"
+
+
+def _relation_decision_label(decision: RelationDecision) -> str:
+    if decision.decision == RelationDecisionType.REPLACE_OLD_WITH_NEW:
+        return "用新知识替换原知识"
+    if decision.decision == RelationDecisionType.KEEP_OLD_ONLY:
+        return "保留原知识"
+    if decision.decision == RelationDecisionType.CUSTOM:
+        return "高级调整"
+    return "采用推荐方案"
+
+
+def _relation_decision_type_from_label(label: str) -> RelationDecisionType:
+    if label == "用新知识替换原知识":
+        return RelationDecisionType.REPLACE_OLD_WITH_NEW
+    if label == "保留原知识":
+        return RelationDecisionType.KEEP_OLD_ONLY
+    if label == "高级调整":
+        return RelationDecisionType.CUSTOM
+    return RelationDecisionType.ADD_NEW_KEEP_OLD
+
+
+def _item_label(item: KnowledgeItem) -> str:
+    return f"{item.knowledge_id}｜{item.question}"
+
+
+def _render_relation_group(group: RelationGroup, decisions: dict[str, RelationDecision]) -> None:
+    title = f"{group.model or '未指定车型'}｜{_relation_type_label(group.relation_type)}"
+    with st.expander(title, expanded=False):
+        st.caption(group.review_reason or "系统发现新旧知识存在复杂对应关系。")
+
+        if group.old_items:
+            st.markdown("**原知识**")
+            for item in group.old_items:
+                st.markdown(f"- {item.question}")
+                st.caption(item.answer)
+
+        if group.new_items:
+            st.markdown("**新知识**")
+            for item in group.new_items:
+                st.markdown(f"- {item.question}")
+                st.caption(item.answer)
+
+        st.info("推荐处理：采用新的知识，同时暂时保留历史知识。这样不会误删旧知识，后续可人工精修。")
+
+        current = decisions.get(group.group_id) or default_relation_decision(group)
+        options = ["采用推荐方案", "用新知识替换原知识", "保留原知识", "高级调整"]
+        current_label = _relation_decision_label(current)
+        selected = st.selectbox(
+            "处理方式",
+            options,
+            index=options.index(current_label) if current_label in options else 0,
+            key=f"relation_decision_{group.group_id}",
+        )
+        decision_type = _relation_decision_type_from_label(selected)
+
+        metadata = {}
+        selected_old_ids = [item.knowledge_id for item in group.old_items]
+        selected_new_ids = [item.knowledge_id for item in group.new_items]
+
+        if decision_type == RelationDecisionType.REPLACE_OLD_WITH_NEW:
+            delete_confirmed = st.checkbox(
+                f"确认从新版知识库中移除 {len(group.old_items)} 条历史知识",
+                key=f"relation_delete_confirm_{group.group_id}",
+            )
+            metadata["delete_confirmed"] = bool(delete_confirmed)
+            if not delete_confirmed:
+                st.warning("替换原知识需要二次确认；未确认前系统仍会采用推荐方案。")
+                decision_type = RelationDecisionType.ADD_NEW_KEEP_OLD
+
+        if decision_type == RelationDecisionType.CUSTOM:
+            new_options = {_item_label(item): item.knowledge_id for item in group.new_items}
+            old_options = {_item_label(item): item.knowledge_id for item in group.old_items}
+            selected_new_labels = st.multiselect(
+                "选择要加入的新知识",
+                list(new_options),
+                default=list(new_options),
+                key=f"relation_custom_new_{group.group_id}",
+            )
+            selected_old_labels = st.multiselect(
+                "选择要保留的原知识",
+                list(old_options),
+                default=list(old_options),
+                key=f"relation_custom_old_{group.group_id}",
+            )
+            selected_new_ids = [new_options[label] for label in selected_new_labels]
+            selected_old_ids = [old_options[label] for label in selected_old_labels]
+            if len(selected_old_ids) < len(group.old_items):
+                delete_confirmed = st.checkbox(
+                    "确认移除未勾选的历史知识",
+                    key=f"relation_custom_delete_confirm_{group.group_id}",
+                )
+                metadata["delete_confirmed"] = bool(delete_confirmed)
+                if not delete_confirmed:
+                    st.warning("未确认删除前，系统会继续保留所有历史知识。")
+                    selected_old_ids = [item.knowledge_id for item in group.old_items]
+
+        decisions[group.group_id] = RelationDecision(
+            group_id=group.group_id,
+            decision=decision_type,
+            reviewed=True,
+            selected_old_ids=selected_old_ids,
+            selected_new_ids=selected_new_ids,
+            metadata=metadata,
+        )
+        st.session_state.update_relation_decisions = decisions
+
+
+def _merge_decisions_with_relations(
+    result: DiffRunResult,
+    grouping: RelationGroupingResult,
+    base_decisions: dict[str, ReviewDecision],
+    relation_decisions: dict[str, RelationDecision],
+) -> dict[str, ReviewDecision]:
+    return apply_relation_decisions(result, grouping.groups, relation_decisions, base_decisions)
+
+
 def _render_review_center(result: DiffRunResult) -> None:
     decisions = _ensure_review_decisions(result)
+    grouping = _ensure_relation_grouping(result)
+    relation_decisions = _ensure_relation_decisions(grouping.groups)
     reviewable = _reviewable_results(result)
     added = _reviewable_results(result, ChangeType.ADDED)
     updated = _reviewable_results(result, ChangeType.UPDATED)
     required = _reviewable_results(result, ChangeType.REVIEW_REQUIRED)
+    result_by_id = {item.diff_id: item for item in result.results}
+    single_required = [result_by_id[diff_id] for diff_id in grouping.single_items if diff_id in result_by_id]
+    grouped_review_count = sum(len(group.diff_ids) for group in grouping.groups)
 
     render_section_title("生成新版知识库")
     render_metric_cards(
@@ -809,17 +973,29 @@ def _render_review_center(result: DiffRunResult) -> None:
             ("本轮变化", len(reviewable), "新增、更新和待确认知识"),
             ("新增", len(added), "默认加入新版知识库"),
             ("更新", len(updated), "默认使用新答案"),
-            ("待确认", len(required), "默认保留原知识"),
+            ("复杂变化", len(grouping.groups), f"涉及 {grouped_review_count} 条待确认知识"),
+            ("单条待确认", len(single_required), "默认保留原知识"),
         ]
     )
 
-    if required:
-        st.warning(
-            f"有 {len(required)} 条知识需要确认；未处理的待确认知识本次会继续保留原知识。"
+    if grouping.groups:
+        st.info(
+            f"发现 {len(grouping.groups)} 组复杂知识变化，涉及 {grouped_review_count} 条待确认知识。"
+            "系统已准备安全默认方案：加入新知识，同时保留历史知识。"
         )
-        with st.expander("处理待确认知识", expanded=True):
-            for item in required:
+        with st.expander("检查复杂变化", expanded=False):
+            for group in grouping.groups:
+                _render_relation_group(group, relation_decisions)
+
+    if single_required:
+        st.warning(
+            f"还有 {len(single_required)} 条单条知识需要确认；未处理时本次会继续保留原知识。"
+        )
+        with st.expander("处理单条待确认知识", expanded=True):
+            for item in single_required:
                 _render_review_item(item, decisions, "required_main")
+    elif grouping.groups:
+        st.success("复杂变化已套用安全默认方案；你可以直接生成新版知识库，也可以先展开检查。")
     else:
         st.success(
             f"系统已根据默认规则处理 {len(added) + len(updated)} 条变化："
@@ -840,12 +1016,14 @@ def _render_review_center(result: DiffRunResult) -> None:
                     decisions[item.diff_id] = decision_from_label(item, "使用新答案")
                 st.session_state.update_review_decisions = decisions
 
-        tabs = st.tabs(["全部", "新增", "更新", "待确认"])
+        adjustable_required = single_required
+        all_adjustable = added + updated + adjustable_required
+        tabs = st.tabs(["全部", "新增", "更新", "单条待确认"])
         tab_specs = [
-            (tabs[0], "all", reviewable),
+            (tabs[0], "all", all_adjustable),
             (tabs[1], "added", added),
             (tabs[2], "updated", updated),
-            (tabs[3], "required", required),
+            (tabs[3], "required", adjustable_required),
         ]
         for tab, key_scope, items in tab_specs:
             with tab:
@@ -856,7 +1034,14 @@ def _render_review_center(result: DiffRunResult) -> None:
                     _render_review_item(item, decisions, key_scope)
 
     if st.button("生成新版知识库", use_container_width=True):
-        merge_result = merge_knowledge(result, decisions)
+        final_decisions = _merge_decisions_with_relations(
+            result,
+            grouping,
+            decisions,
+            relation_decisions,
+        )
+        st.session_state.update_review_decisions = final_decisions
+        merge_result = merge_knowledge(result, final_decisions)
         st.session_state.update_merge_result = merge_result
         st.session_state.update_review_completed = True
         st.session_state.update_stage = "merged"
