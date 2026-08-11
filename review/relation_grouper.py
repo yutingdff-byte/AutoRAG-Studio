@@ -252,7 +252,15 @@ def group_review_required(diff_result: DiffRunResult) -> RelationGroupingResult:
 
     all_groups = many_to_one_groups + groups
     grouped_ids = {diff_id for group in all_groups for diff_id in group.diff_ids}
-    singles = [diff_id for diff_id in all_review_ids if diff_id not in grouped_ids]
+    result_by_id = {result.diff_id: result for result in diff_result.results}
+    singles = [
+        diff_id
+        for diff_id in all_review_ids
+        if diff_id not in grouped_ids
+        and result_by_id.get(diff_id)
+        and result_by_id[diff_id].old_item is not None
+        and result_by_id[diff_id].new_item is not None
+    ]
 
     return RelationGroupingResult(
         groups=all_groups,

@@ -69,3 +69,21 @@ def test_review_required_defaults_to_old_and_remove_requires_confirmation():
     assert remove.decision == ReviewDecisionType.REMOVE
     assert remove.metadata["delete_confirmed"]
 
+
+def test_review_required_without_old_defaults_to_accept_new():
+    result = DiffResult(
+        diff_id="DIFF-ORPHAN",
+        old_item=None,
+        new_item=item("NEW", "新答案"),
+        change_type=ChangeType.REVIEW_REQUIRED,
+        match_method=MatchMethod.UNMATCHED,
+        match_confidence=0.2,
+        change_confidence=0.2,
+        overall_confidence=0.2,
+    )
+
+    decision = build_default_decisions([result])[result.diff_id]
+
+    assert decision.decision == ReviewDecisionType.ACCEPT_NEW
+    assert decision.final_item == result.new_item
+    assert decision.metadata["routed_as"] == "ADDED_WITHOUT_OLD"

@@ -96,7 +96,6 @@ def test_update_results_and_diff_survive_navigation_reruns():
     _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
     assert app.session_state["update_restore_result"].restored_count == 1
     assert app.session_state["update_diff_result"].total_count == 1
-    assert any(tab.label == "全部" for tab in app.tabs)
 
     _radio_by_key(app, "navigation_mode").set_value("home").run(timeout=60)
     _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
@@ -104,7 +103,6 @@ def test_update_results_and_diff_survive_navigation_reruns():
     assert app.session_state["update_restore_result"].restored_count == 1
     assert len(app.session_state["update_new_knowledge"]) == 1
     assert app.session_state["update_diff_result"].total_count == 1
-    assert any(tab.label == "全部" for tab in app.tabs)
     assert not app.exception
 
 

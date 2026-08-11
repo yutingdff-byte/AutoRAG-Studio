@@ -210,69 +210,67 @@ def _restore_history_files(files, deep_restore: bool = False) -> RestoreResult:
     st.session_state.update_restore_result = result
     st.session_state.update_restore_logs = logs
     st.session_state.update_stage = "restored"
+    log_box.empty()
     return result
 
 
 def _render_restore_result(result: RestoreResult) -> None:
-    render_section_title("恢复结果")
+    render_section_title("历史知识恢复完成")
 
     render_metric_cards(
         [
             ("恢复知识", result.restored_count, "从历史知识文件恢复出的统一知识对象数量"),
             ("涉及车型", result.model_count, "根据历史知识中的车型字段统计"),
+            ("文件数量", len(result.files), "已处理的历史知识文件数量"),
             ("待确认", result.need_confirm_count, "历史知识中标记为需要确认的条目"),
         ]
     )
 
+    failed_files = [file_result for file_result in result.files if not file_result.success]
+    if failed_files:
+        st.warning(f"有 {len(failed_files)} 个历史知识文件处理失败。")
+    else:
+        st.success("历史知识已恢复完成。")
+
+    with st.expander("查看文件处理结果", expanded=False):
+        st.dataframe(
+            [
+                {
+                    "文件": file_result.file_name,
+                    "结果": "成功" if file_result.success else "失败",
+                    "知识数量": len(file_result.items),
+                }
+                for file_result in result.files
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    if failed_files:
+        with st.expander("查看错误详情", expanded=False):
+            for file_result in failed_files:
+                st.error(f"{file_result.file_name}：{file_result.error or '知识恢复失败，请检查文件格式。'}")
+                if file_result.logs:
+                    st.code(
+                        "\n".join(_friendly_restore_log_entry(entry) for entry in file_result.logs),
+                        language="text",
+                    )
+
+    failures = []
     for file_result in result.files:
         report = file_result.report or {}
-        if report.get("format_id") == "SYSTEM_STANDARD_WORD_V1":
-            failed_count = report.get("failed_count", 0) + report.get("skipped_count", 0)
-            message = "✓ 已识别系统标准知识格式，系统已自动完成恢复。"
-            if failed_count:
-                message += f" 有 {failed_count} 条记录需要进一步查看。"
-            st.info(message)
-
-        if file_result.success:
-            st.success(
-                f"{file_result.file_name}：历史知识恢复完成，恢复 {len(file_result.items)} 条，耗时 {file_result.elapsed_seconds:.2f}s"
+        for failure in report.get("failures") or []:
+            failures.append(
+                {
+                    "文件": file_result.file_name,
+                    "记录": failure.get("source_record_index"),
+                    "原因": failure.get("reason"),
+                }
             )
-        else:
-            st.error(
-                f"{file_result.file_name}：{file_result.error or '知识恢复失败，请检查文件格式。'}"
-            )
-
-        if file_result.logs:
-            with st.expander("查看恢复日志", expanded=False):
-                st.code(
-                    "\n".join(
-                        _friendly_restore_log_entry(entry)
-                        for entry in file_result.logs
-                    ),
-                    language="text",
-                )
-
-        failures = report.get("failures") or []
-        if failures:
-            with st.expander("查看未恢复记录", expanded=False):
-                st.dataframe(
-                    [
-                        {
-                            "记录": failure.get("source_record_index"),
-                            "段落开始": failure.get("source_paragraph_start"),
-                            "段落结束": failure.get("source_paragraph_end"),
-                            "原因": failure.get("reason"),
-                        }
-                        for failure in failures
-                    ],
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-    if result.items:
-        with st.expander("恢复结果预览", expanded=True):
+    if failures:
+        with st.expander("查看未恢复记录", expanded=False):
             st.dataframe(
-                knowledge_to_preview_rows(result.items),
+                failures,
                 use_container_width=True,
                 hide_index=True,
             )
@@ -495,7 +493,7 @@ def _generate_new_knowledge(files):
 
 
 def _render_new_knowledge_result(items, errors) -> None:
-    render_section_title("新增资料知识")
+    render_section_title("新增资料处理完成" if items else "新增资料处理结果")
 
     if errors:
         user_errors = []
@@ -507,8 +505,8 @@ def _render_new_knowledge_result(items, errors) -> None:
             st.error(f"新增资料生成失败：{error}")
 
     logs = st.session_state.get("update_new_logs", [])
-    if logs:
-        with st.expander("查看处理日志", expanded=False):
+    if errors and logs:
+        with st.expander("查看错误详情", expanded=False):
             for entry in logs:
                 st.code(_friendly_new_log_entry(entry), language="text")
 
@@ -517,26 +515,21 @@ def _render_new_knowledge_result(items, errors) -> None:
         return
 
     models = sorted({item.model for item in items if item.model})
+    source_files = sorted({source for item in items for source in item.source_files if source})
     need_confirm_count = sum(1 for item in items if item.need_confirm)
+    st.success("新增资料已处理完成。")
     render_metric_cards(
         [
-            ("新增知识", len(items), "由本轮新增资料生成的统一知识对象数量"),
+            ("生成知识", len(items), "由本轮新增资料生成的统一知识对象数量"),
             ("涉及车型", len(models), "根据新增知识中的车型字段统计"),
+            ("文件数量", len(source_files), "本轮新增资料来源文件数量"),
             ("待确认", need_confirm_count, "新增知识中标记为需要确认的条目"),
         ]
     )
 
-    with st.expander("新增知识预览", expanded=False):
-        st.dataframe(
-            knowledge_to_preview_rows(items),
-            use_container_width=True,
-            hide_index=True,
-        )
-
 
 def _render_scope(scope: DetectedUpdateScope) -> None:
     render_section_title("系统识别本轮资料范围")
-    st.info(scope.summary or "未识别到明确更新范围。")
 
     def preview_values(values: list[str], limit: int = 3) -> str:
         values = [str(value) for value in values if value]
@@ -683,37 +676,41 @@ def _diff_column_config(change_type: ChangeType) -> dict:
 
 def _render_diff_result(result: DiffRunResult) -> None:
     _render_scope(result.detected_scope)
+    grouping = _ensure_relation_grouping(result)
+    single_count = len(grouping.single_items)
+    auto_added_count = len(_auto_added_review_results(result, grouping))
 
-    render_section_title("差异分析结果")
+    render_section_title("本轮变化")
     render_metric_cards(
         [
-            ("总知识数", result.total_count, "Diff 结果总条数"),
-            ("新增", result.added_count, "新增资料中出现、历史知识中未可靠匹配的知识"),
-            ("更新", result.updated_count, "已匹配且回答发生明确变化的知识"),
-            ("未变化", result.unchanged_count, "未变化或本轮未明显涉及、默认保留的旧知识"),
-            ("待确认", result.review_required_count, "无法可靠自动处理，需要人工判断的知识"),
+            ("新增", result.added_count + auto_added_count, "将自动加入新版知识库"),
+            ("更新", result.updated_count, "将自动采用新答案替换旧答案"),
+            ("未变化", result.unchanged_count, "继续保留历史知识"),
+            ("复杂变化", len(grouping.groups), "按关系组处理"),
+            ("单条待确认", single_count, "默认保留原知识"),
         ]
     )
 
-    tabs = st.tabs(["新增", "更新", "待确认", "未变化"])
-    tab_specs = [
-        (tabs[0], ChangeType.ADDED),
-        (tabs[1], ChangeType.UPDATED),
-        (tabs[2], ChangeType.REVIEW_REQUIRED),
-        (tabs[3], ChangeType.UNCHANGED),
-    ]
-    for tab, change_type in tab_specs:
-        with tab:
-            rows = _diff_rows(result.results, change_type)
-            if rows:
-                st.dataframe(
-                    rows,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config=_diff_column_config(change_type),
-                )
-            else:
-                st.caption("暂无数据。")
+    with st.expander("查看全部变化详情", expanded=False):
+        tabs = st.tabs(["新增", "更新", "待确认", "未变化"])
+        tab_specs = [
+            (tabs[0], ChangeType.ADDED),
+            (tabs[1], ChangeType.UPDATED),
+            (tabs[2], ChangeType.REVIEW_REQUIRED),
+            (tabs[3], ChangeType.UNCHANGED),
+        ]
+        for tab, change_type in tab_specs:
+            with tab:
+                rows = _diff_rows(result.results, change_type)
+                if rows:
+                    st.dataframe(
+                        rows,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config=_diff_column_config(change_type),
+                    )
+                else:
+                    st.caption("暂无数据。")
 
 
 def _reviewable_results(result: DiffRunResult, change_type: ChangeType | None = None) -> list[DiffResult]:
@@ -725,6 +722,19 @@ def _reviewable_results(result: DiffRunResult, change_type: ChangeType | None = 
     if change_type:
         reviewable = [item for item in reviewable if item.change_type == change_type]
     return reviewable
+
+
+def _auto_added_review_results(result: DiffRunResult, grouping: RelationGroupingResult) -> list[DiffResult]:
+    grouped_ids = {diff_id for group in grouping.groups for diff_id in group.diff_ids}
+    grouped_ids.update(grouping.single_items)
+    return [
+        item
+        for item in result.results
+        if item.change_type == ChangeType.REVIEW_REQUIRED
+        and item.diff_id not in grouped_ids
+        and item.old_item is None
+        and item.new_item is not None
+    ]
 
 
 def _ensure_review_decisions(result: DiffRunResult) -> dict[str, ReviewDecision]:
@@ -959,79 +969,43 @@ def _render_review_center(result: DiffRunResult) -> None:
     decisions = _ensure_review_decisions(result)
     grouping = _ensure_relation_grouping(result)
     relation_decisions = _ensure_relation_decisions(grouping.groups)
-    reviewable = _reviewable_results(result)
     added = _reviewable_results(result, ChangeType.ADDED)
     updated = _reviewable_results(result, ChangeType.UPDATED)
-    required = _reviewable_results(result, ChangeType.REVIEW_REQUIRED)
     result_by_id = {item.diff_id: item for item in result.results}
     single_required = [result_by_id[diff_id] for diff_id in grouping.single_items if diff_id in result_by_id]
     grouped_review_count = sum(len(group.diff_ids) for group in grouping.groups)
+    auto_added = _auto_added_review_results(result, grouping)
+    auto_added_count = len(added) + len(auto_added)
+
+    if grouping.groups or single_required:
+        render_section_title("处理异常")
+        if grouping.groups:
+            st.info(
+                f"发现 {len(grouping.groups)} 组复杂知识变化，涉及 {grouped_review_count} 条知识。"
+                "系统已准备安全默认方案：加入新知识，同时保留历史知识。"
+            )
+            with st.expander("检查复杂变化", expanded=False):
+                for group in grouping.groups:
+                    _render_relation_group(group, relation_decisions)
+
+        if single_required:
+            st.warning(
+                f"还有 {len(single_required)} 条单条知识需要确认；未处理时本次会继续保留原知识。"
+            )
+            with st.expander("处理单条待确认知识", expanded=True):
+                for item in single_required:
+                    _render_review_item(item, decisions, "required_main")
+    else:
+        st.success("本轮没有需要人工处理的异常变化。")
 
     render_section_title("生成新版知识库")
-    render_metric_cards(
-        [
-            ("本轮变化", len(reviewable), "新增、更新和待确认知识"),
-            ("新增", len(added), "默认加入新版知识库"),
-            ("更新", len(updated), "默认使用新答案"),
-            ("复杂变化", len(grouping.groups), f"涉及 {grouped_review_count} 条待确认知识"),
-            ("单条待确认", len(single_required), "默认保留原知识"),
-        ]
+    st.info(
+        "系统将自动：\n\n"
+        f"- 加入 {auto_added_count} 条新增知识\n"
+        f"- 替换 {len(updated)} 条已更新知识\n"
+        f"- 保留 {result.unchanged_count} 条未变化知识\n\n"
+        "复杂变化和单条待确认知识将按当前选择处理；未处理时采用安全默认方案。"
     )
-
-    if grouping.groups:
-        st.info(
-            f"发现 {len(grouping.groups)} 组复杂知识变化，涉及 {grouped_review_count} 条待确认知识。"
-            "系统已准备安全默认方案：加入新知识，同时保留历史知识。"
-        )
-        with st.expander("检查复杂变化", expanded=False):
-            for group in grouping.groups:
-                _render_relation_group(group, relation_decisions)
-
-    if single_required:
-        st.warning(
-            f"还有 {len(single_required)} 条单条知识需要确认；未处理时本次会继续保留原知识。"
-        )
-        with st.expander("处理单条待确认知识", expanded=True):
-            for item in single_required:
-                _render_review_item(item, decisions, "required_main")
-    elif grouping.groups:
-        st.success("复杂变化已套用安全默认方案；你可以直接生成新版知识库，也可以先展开检查。")
-    else:
-        st.success(
-            f"系统已根据默认规则处理 {len(added) + len(updated)} 条变化："
-            f"新增知识 {len(added)} 条将自动加入，更新知识 {len(updated)} 条将采用新答案，"
-            f"未变化知识 {result.unchanged_count} 条继续保留。"
-        )
-
-    with st.expander("查看并调整全部变化", expanded=False):
-        bulk_col_1, bulk_col_2 = st.columns(2)
-        with bulk_col_1:
-            if st.button("全部接受新增", use_container_width=True, disabled=not bool(added)):
-                for item in added:
-                    decisions[item.diff_id] = decision_from_label(item, "加入新版知识库")
-                st.session_state.update_review_decisions = decisions
-        with bulk_col_2:
-            if st.button("全部接受更新", use_container_width=True, disabled=not bool(updated)):
-                for item in updated:
-                    decisions[item.diff_id] = decision_from_label(item, "使用新答案")
-                st.session_state.update_review_decisions = decisions
-
-        adjustable_required = single_required
-        all_adjustable = added + updated + adjustable_required
-        tabs = st.tabs(["全部", "新增", "更新", "单条待确认"])
-        tab_specs = [
-            (tabs[0], "all", all_adjustable),
-            (tabs[1], "added", added),
-            (tabs[2], "updated", updated),
-            (tabs[3], "required", adjustable_required),
-        ]
-        for tab, key_scope, items in tab_specs:
-            with tab:
-                if not items:
-                    st.caption("暂无可调整的知识。")
-                    continue
-                for item in items:
-                    _render_review_item(item, decisions, key_scope)
 
     if st.button("生成新版知识库", use_container_width=True):
         final_decisions = _merge_decisions_with_relations(
@@ -1115,15 +1089,25 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
     if merge_result is None:
         return
 
-    render_section_title("更新完成")
+    diff_result = st.session_state.get("update_diff_result")
+    grouping = st.session_state.get("update_relation_grouping")
+    auto_added_count = 0
+    complex_group_count = 0
+    if isinstance(diff_result, DiffRunResult) and isinstance(grouping, RelationGroupingResult):
+        auto_added_count = len(_auto_added_review_results(diff_result, grouping))
+        complex_group_count = len(grouping.groups)
+
+    render_section_title("新版知识库生成完成")
     final_count = len(merge_result.final_items)
+    st.success("新版知识库已生成完成，可以下载 Excel。")
     render_metric_cards(
         [
-            ("新增采用", merge_result.added_accepted, "已加入新版知识库的新增知识"),
-            ("更新采用", merge_result.updated_accepted, "已使用新答案的更新知识"),
-            ("保留旧知识", merge_result.kept_old, "未变化或选择保留的历史知识"),
-            ("删除", merge_result.removed, "已二次确认删除的知识"),
             ("最终知识", final_count, "新版知识库最终条数"),
+            ("新增采用", merge_result.added_accepted + auto_added_count, "已加入新版知识库的新增知识"),
+            ("自动更新", merge_result.updated_accepted, "已自动替换为新答案的知识"),
+            ("保留旧知识", merge_result.kept_old, "未变化或选择保留的历史知识"),
+            ("复杂变化处理", complex_group_count, "已按当前选择处理的复杂变化组"),
+            ("删除", merge_result.removed, "已二次确认删除的知识"),
         ]
     )
 
@@ -1153,6 +1137,7 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
 
     static_file = export_files.get("static")
     dynamic_file = export_files.get("dynamic")
+    render_section_title("下载新版知识库")
     download_col_1, download_col_2 = st.columns(2)
     with download_col_1:
         if static_file:
@@ -1176,13 +1161,20 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
 
 def _update_steps() -> list[str]:
     stage = st.session_state.get("update_stage", "idle")
+    restore_done = bool((st.session_state.get("update_restore_result") or RestoreResult()).items)
+    new_done = bool(st.session_state.get("update_new_knowledge"))
+    diff_result = st.session_state.get("update_diff_result")
+    exceptions_ready = False
+    if diff_result:
+        grouping = st.session_state.get("update_relation_groups") or group_review_required(diff_result)
+        exceptions_ready = bool(grouping.groups or grouping.single_items)
     completed = {
-        "1 上传历史知识": bool(st.session_state.get("update_old_file_names")),
-        "2 上传新增资料": bool(st.session_state.get("update_new_file_names")),
-        "3 恢复统一知识": bool((st.session_state.get("update_restore_result") or RestoreResult()).items),
-        "4 差异分析": bool(st.session_state.get("update_diff_result")),
+        "1 上传资料": bool(st.session_state.get("update_old_file_names") or st.session_state.get("update_new_file_names")),
+        "2 恢复与生成": bool(restore_done and (new_done or st.session_state.get("update_review_completed"))),
+        "3 差异分析": bool(diff_result),
+        "4 处理异常": bool(diff_result and not exceptions_ready) or bool(st.session_state.get("update_review_completed")),
         "5 生成新版": bool(st.session_state.get("update_review_completed")),
-        "6 导出": bool(st.session_state.get("update_export_files")),
+        "6 下载": bool(st.session_state.get("update_export_files")),
     }
     labels = []
     for step, done in completed.items():
@@ -1198,7 +1190,7 @@ def _update_steps() -> list[str]:
 def render_update_page() -> None:
     render_page_header(
         "更新已有知识库 Update",
-        "历史知识恢复、新增资料生成与差异识别。",
+        "上传历史知识和新增资料，系统自动识别变化并生成新版知识库。",
     )
 
     render_step_navigation(_update_steps())

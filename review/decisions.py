@@ -31,6 +31,15 @@ def default_decision_for_result(result: DiffResult) -> ReviewDecision:
             reviewed=False,
         )
 
+    if result.change_type == ChangeType.REVIEW_REQUIRED and result.old_item is None and result.new_item is not None:
+        return ReviewDecision(
+            diff_id=result.diff_id,
+            decision=ReviewDecisionType.ACCEPT_NEW,
+            final_item=result.new_item,
+            reviewed=False,
+            metadata={"routed_as": "ADDED_WITHOUT_OLD"},
+        )
+
     return ReviewDecision(
         diff_id=result.diff_id,
         decision=ReviewDecisionType.KEEP_OLD,
@@ -79,4 +88,3 @@ def decision_from_label(result: DiffResult, label: str, delete_confirmed: bool =
         final_item=result.old_item,
         reviewed=True,
     )
-

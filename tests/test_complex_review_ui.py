@@ -1,6 +1,6 @@
 from diff.models import ChangeType, DiffResult, DiffRunResult, DetectedUpdateScope, MatchMethod, ReviewReason
 from knowledge.models import KnowledgeItem
-from pages.update_page import _reviewable_results
+from pages.update_page import _auto_added_review_results, _reviewable_results
 from review.relation_grouper import group_review_required
 
 
@@ -31,7 +31,7 @@ def diff(diff_id: str, change_type: ChangeType, old=None, new=None, reason=None,
     )
 
 
-def test_complex_review_groups_remove_grouped_required_from_single_items():
+def test_complex_review_groups_and_orphan_new_items_do_not_become_single_reviews():
     old = item("OLD", "H6L", "H6L有什么购车权益？")
     new_cash = item("NEW-CASH", "H6L", "H6L现金优惠多少？")
     new_finance = item("NEW-FINANCE", "H6L", "H6L有什么金融政策？")
@@ -51,6 +51,6 @@ def test_complex_review_groups_remove_grouped_required_from_single_items():
     single_required = [item for item in _reviewable_results(result, ChangeType.REVIEW_REQUIRED) if item.diff_id in grouping.single_items]
 
     assert len(grouping.groups) == 1
-    assert grouping.single_items == ["D3"]
-    assert [item.diff_id for item in single_required] == ["D3"]
-
+    assert grouping.single_items == []
+    assert single_required == []
+    assert [item.diff_id for item in _auto_added_review_results(result, grouping)] == ["D3"]

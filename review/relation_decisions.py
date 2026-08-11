@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from diff.models import DiffResult, DiffRunResult
+from diff.models import ChangeType
 from review.models import ReviewDecision, ReviewDecisionType
 from review.relation_models import RelationDecision, RelationDecisionType, RelationGroup
 
@@ -90,6 +91,8 @@ def _apply_keep_old(
         result = result_by_id.get(diff_id)
         if not result or not result.old_item:
             continue
+        if result.change_type not in {ChangeType.UNCHANGED, ChangeType.REVIEW_REQUIRED}:
+            continue
         decisions[diff_id] = ReviewDecision(
             diff_id=diff_id,
             decision=ReviewDecisionType.KEEP_OLD,
@@ -126,6 +129,8 @@ def _apply_remove_old(
     for diff_id in group.old_diff_ids:
         result = result_by_id.get(diff_id)
         if not result or not result.old_item:
+            continue
+        if result.change_type not in {ChangeType.UNCHANGED, ChangeType.REVIEW_REQUIRED}:
             continue
         decisions[diff_id] = ReviewDecision(
             diff_id=diff_id,
@@ -173,6 +178,8 @@ def _apply_custom(
         result = result_by_id.get(diff_id)
         if not result or not result.old_item:
             continue
+        if result.change_type not in {ChangeType.UNCHANGED, ChangeType.REVIEW_REQUIRED}:
+            continue
         decision_type = ReviewDecisionType.KEEP_OLD if result.old_item.knowledge_id in selected_old_ids else ReviewDecisionType.REMOVE
         decisions[diff_id] = ReviewDecision(
             diff_id=diff_id,
@@ -184,4 +191,3 @@ def _apply_custom(
                 "delete_confirmed": bool(relation_decision.metadata.get("delete_confirmed")),
             },
         )
-
