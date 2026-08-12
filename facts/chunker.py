@@ -10,7 +10,11 @@ DEFAULT_FACTS_CHUNK_TARGET_CHARS = 4500
 DEFAULT_FACTS_CHUNK_MAX_CHARS = 6000
 
 FILE_HEADING_PATTERN = re.compile(r"^=+\s*文件[:：].*?=+$")
-IMAGE_BLOCK_PATTERN = re.compile(r"^【内嵌图片\s+\d+/\d+[:：].*】$")
+IMAGE_BLOCK_PATTERN = re.compile(r"^【内嵌图片\s+\d+/\d+[:：].*】")
+NUMBERED_LINE_PATTERN = re.compile(
+    r"^\s*(?:\d+[\.\u3001]|[一二三四五六七八九十]+[\u3001\.]|\([0-9一二三四五六七八九十]+\)|[-•●①②③④⑤⑥⑦⑧⑨])"
+)
+SENTENCE_BOUNDARY_PATTERN = re.compile(r"([。！？!?；;]\s*)")
 
 
 def _normalize_newlines(text: str) -> str:
@@ -32,7 +36,7 @@ def _is_heading(block: str) -> bool:
         return True
     if first.startswith(("【", "#")):
         return True
-    if len(first) <= 40 and not re.search(r"[。！？!?；;，,]", first):
+    if len(first) <= 40 and not re.search(r"[。！？?!；;，,]", first):
         return True
     return False
 
@@ -64,6 +68,10 @@ def _append_with_spacing(parts: list[str], block: str) -> str:
     return "\n\n".join(parts + [block]) if parts else block
 
 
+def _append_unit(parts: list[str], unit: str) -> str:
+    return "\n".join(parts + [unit]) if parts else unit
+
+
 def _build_context_header(headings: list[str]) -> str:
     clean = []
     for heading in headings[-3:]:
@@ -93,6 +101,177 @@ def _finalize_chunk(chunks: list[FactChunk], parts: list[str], headings: list[st
     )
 
 
+def _is_boundary_line(line: str) -> bool:
+    value = line.strip()
+    if not value:
+        return False
+    if value in {"{", "}"}:
+        return True
+    if NUMBERED_LINE_PATTERN.match(value):
+        return True
+    if FILE_HEADING_PATTERN.match(value):
+        return True
+    if value.startswith(("【", "#")):
+        return True
+    if len(value) <= 40 and not re.search(r"[。！？?!；;，,]", value):
+        return True
+    return False
+
+
+def _split_long_unit(unit: str, max_chars: int) -> list[str]:
+    text = unit.strip()
+    if len(text) <= max_chars:
+        return [text] if text else []
+
+    sentence_parts = []
+    start = 0
+    for match in SENTENCE_BOUNDARY_PATTERN.finditer(text):
+        end = match.end()
+        sentence_parts.append(
+            text[start:end].strip()
+        )
+        start = end
+    if start < len(text):
+        sentence_parts.append(
+            text[start:].strip()
+        )
+
+    if not sentence_parts:
+        sentence_parts = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip()
+        ]
+
+    chunks = []
+    current = ""
+    for part in sentence_parts:
+        if not part:
+            continue
+        candidate = f"{current}{part}" if current else part
+        if current and len(candidate) > max_chars:
+            chunks.append(
+                current
+            )
+            current = part
+        else:
+            current = candidate
+
+        while len(current) > max_chars:
+            split_at = max(
+                current.rfind(mark, 0, max_chars)
+                for mark in ["。", "；", ";", "，", ",", " "]
+            )
+            if split_at <= 0:
+                split_at = max_chars
+            chunks.append(
+                current[:split_at].strip()
+            )
+            current = current[split_at:].strip()
+
+    if current:
+        chunks.append(
+            current
+        )
+    return [
+        chunk
+        for chunk in chunks
+        if chunk
+    ]
+
+
+def _split_oversized_block(block: str, max_chars: int) -> list[str]:
+    lines = [
+        line.strip()
+        for line in _normalize_newlines(block).splitlines()
+        if line.strip()
+    ]
+    if not lines:
+        return []
+
+    units: list[str] = []
+    current: list[str] = []
+    in_json_record = False
+
+    def flush_current() -> None:
+        nonlocal current
+        if current:
+            units.append(
+                "\n".join(current).strip()
+            )
+            current = []
+
+    for line in lines:
+        if line == "{":
+            flush_current()
+            current = [line]
+            in_json_record = True
+            continue
+
+        if in_json_record:
+            current.append(
+                line
+            )
+            if line == "}":
+                flush_current()
+                in_json_record = False
+            continue
+
+        if _is_boundary_line(line):
+            flush_current()
+            current = [line]
+        else:
+            current.append(
+                line
+            )
+
+    flush_current()
+
+    split_units: list[str] = []
+    for unit in units:
+        split_units.extend(
+            _split_long_unit(
+                unit,
+                max_chars
+            )
+        )
+    return split_units
+
+
+def _append_safe_unit_to_chunks(
+    chunks: list[FactChunk],
+    current: list[str],
+    headings: list[str],
+    unit: str,
+    target_chars: int,
+    max_chars: int,
+) -> list[str]:
+    candidate = _append_unit(
+        current,
+        unit
+    )
+    if current and len(candidate) > max_chars:
+        _finalize_chunk(
+            chunks,
+            current,
+            headings
+        )
+        return [unit]
+
+    if current and len(candidate) > target_chars:
+        _finalize_chunk(
+            chunks,
+            current,
+            headings
+        )
+        return [unit]
+
+    current.append(
+        unit
+    )
+    return current
+
+
 def build_fact_chunks(
     material: str,
     target_chars: int = DEFAULT_FACTS_CHUNK_TARGET_CHARS,
@@ -114,10 +293,27 @@ def build_fact_chunks(
             active_headings.append(block)
 
         if block_len > max_chars:
-            _finalize_chunk(chunks, current, current_headings)
+            _finalize_chunk(
+                chunks,
+                current,
+                current_headings
+            )
             current = []
             current_headings = list(active_headings)
-            _finalize_chunk(chunks, [block], current_headings, oversized=True)
+            for unit in _split_oversized_block(block, max_chars):
+                if _is_heading(unit):
+                    active_headings.append(unit)
+                    current_headings = list(active_headings)
+                if not current_headings:
+                    current_headings = list(active_headings)
+                current = _append_safe_unit_to_chunks(
+                    chunks,
+                    current,
+                    current_headings,
+                    unit,
+                    target_chars,
+                    max_chars
+                )
             current_headings = list(active_headings)
             continue
 
