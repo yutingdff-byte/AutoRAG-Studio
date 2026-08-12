@@ -1,9 +1,13 @@
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from time import perf_counter
 from collections import defaultdict
 
 from agents.llm_client import call_llm
 from utils import rag_quality
+from utils.config import get_config
 
 
 STATIC_KEYWORDS = [
@@ -1410,6 +1414,201 @@ def generate_batch(
     )
 
 
+@dataclass(slots=True)
+class RagBatchResult:
+    batch_index: int
+    success: bool
+    result: dict | None
+    error: str = ""
+    elapsed: float = 0.0
+    fact_count: int = 0
+
+
+class RagBatchExecutionError(RuntimeError):
+    pass
+
+
+def get_rag_max_concurrency():
+    try:
+        value = int(
+            get_config(
+                "RAG_MAX_CONCURRENCY",
+                "2"
+            )
+        )
+    except (TypeError, ValueError):
+        value = 2
+
+    return max(
+        1,
+        value
+    )
+
+
+def _run_single_batch(batch_index, batch, total_batches, system_prompt, fact_index):
+    started = perf_counter()
+
+    try:
+        print(
+            f"===== Step2 Batch {batch_index + 1}/{total_batches} ====="
+        )
+        print(
+            "Facts数量:",
+            len(batch)
+        )
+
+        result = generate_batch(
+            batch,
+            system_prompt
+        )
+
+        elapsed = perf_counter() - started
+
+        if not result:
+            return RagBatchResult(
+                batch_index=batch_index,
+                success=False,
+                result=None,
+                error="Batch未返回有效结果",
+                elapsed=elapsed,
+                fact_count=len(batch),
+            )
+
+        normalized = normalize_rag_metadata(
+            result,
+            fact_index
+        )
+
+        return RagBatchResult(
+            batch_index=batch_index,
+            success=True,
+            result=normalized,
+            elapsed=elapsed,
+            fact_count=len(batch),
+        )
+
+    except Exception as exc:
+        return RagBatchResult(
+            batch_index=batch_index,
+            success=False,
+            result=None,
+            error=f"{exc.__class__.__name__}: {exc}",
+            elapsed=perf_counter() - started,
+            fact_count=len(batch),
+        )
+
+
+def execute_rag_batches(batches, system_prompt, fact_index, max_concurrency=None):
+    batch_count = len(batches)
+    if batch_count == 0:
+        return []
+
+    max_concurrency = max(
+        1,
+        int(
+            max_concurrency
+            if max_concurrency is not None
+            else get_rag_max_concurrency()
+        )
+    )
+    max_workers = min(
+        max_concurrency,
+        batch_count
+    )
+
+    wall_started = perf_counter()
+    print("[RAG Performance]")
+    print("batch_count:", batch_count)
+    print("max_concurrency:", max_workers)
+
+    if max_workers == 1:
+        batch_results = [
+            _run_single_batch(
+                index,
+                batch,
+                batch_count,
+                system_prompt,
+                fact_index
+            )
+            for index, batch in enumerate(
+                batches
+            )
+        ]
+    else:
+        batch_results = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    _run_single_batch,
+                    index,
+                    batch,
+                    batch_count,
+                    system_prompt,
+                    fact_index
+                )
+                for index, batch in enumerate(
+                    batches
+                )
+            ]
+
+            for future in as_completed(
+                futures
+            ):
+                batch_results.append(
+                    future.result()
+                )
+
+    batch_results.sort(
+        key=lambda item: item.batch_index
+    )
+
+    failed = [
+        item
+        for item in batch_results
+        if not item.success
+    ]
+
+    for item in batch_results:
+        status = "success" if item.success else "failed"
+        generated = (
+            len(
+                item.result.get(
+                    "rag_knowledge",
+                    []
+                )
+            )
+            if item.result
+            else 0
+        )
+        print(
+            f"batch_{item.batch_index + 1}: {status}, facts={item.fact_count}, generated={generated}, elapsed={item.elapsed:.2f}s"
+        )
+        if item.error:
+            print(
+                f"batch_{item.batch_index + 1}_error: {item.error}"
+            )
+
+    print(
+        "rag_wall_time:",
+        f"{perf_counter() - wall_started:.2f}s"
+    )
+
+    if failed:
+        failed_indexes = [
+            item.batch_index + 1
+            for item in failed
+        ]
+        raise RagBatchExecutionError(
+            f"RAG batch生成失败: {failed_indexes}"
+        )
+
+    return [
+        item.result
+        for item in batch_results
+        if item.result
+    ]
+
+
 
 def merge_results(results):
 
@@ -1579,50 +1778,11 @@ def generate_rag(facts):
 
 
 
-    results=[]
-
-
-
-    for index,batch in enumerate(
-        batches
-    ):
-
-
-        print(
-            f"===== Step2 Batch {index+1}/{len(batches)} ====="
-        )
-
-
-        print(
-            "Facts数量:",
-            len(batch)
-        )
-
-
-
-        result = generate_batch(
-            batch,
-            system_prompt
-        )
-
-
-
-        if result:
-
-
-            results.append(
-                normalize_rag_metadata(
-                    result,
-                    fact_index
-                )
-            )
-
-
-        else:
-
-            print(
-                f"Batch {index+1}生成失败"
-            )
+    results = execute_rag_batches(
+        batches,
+        system_prompt,
+        fact_index,
+    )
 
 
 
