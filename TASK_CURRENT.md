@@ -1,90 +1,78 @@
 # AutoRAG-Studio Current Task
 
-Version: V0.8.0-dev
+Version: V0.8.0-rc1
 
-Status: In Progress
+Status: Stable Checkpoint
 
-Milestone: V0.8.0 Milestone 3A - Rule-based Knowledge Change Detection
+Last Update: 2026-08-12
 
-## Completed In V0.6
+## Current Stable Checkpoint
 
-- TASK-001: Run ID and isolated output directory
-- TASK-002: Engineering hygiene fixes
-- V0.6.1: Static/dynamic knowledge classification and dual Excel export
-- V0.6.2: Brand/model/trim vehicle hierarchy
-- V0.6.3: Model-level knowledge aggregation and version-difference generation
-- V0.6.4: Streamlit review console and productized Excel naming
-- V0.6.5: Knowledge review center and price overview optimization
-- V0.6.6: Review console polish, price knowledge optimization, and QC static/dynamic false-positive fix
+```text
+v0.8.0-rc1
+```
 
-## Current Stable State
+The RC1 checkpoint preserves:
 
-V0.7.3 Cloud Ready is the current deployable Generate baseline.
+- Generate stable production chain
+- Update closed loop
+- Historical Restore
+- Diff V0.2
+- Complex Relation Grouping
+- Exception Review
+- Merge
+- Exact Duplicate Cleanup
+- Dual Excel Export
+- RAG concurrency performance baseline
+- Experimental Rule First QC framework
 
-The system can:
+## Current Production Defaults
 
-- Parse common automotive material files
-- Extract facts
-- Generate AI outbound-call RAG knowledge
-- Split static vehicle configuration knowledge and dynamic price policy knowledge
-- Export two productized Excel files
-- Display generated results in the review console
-- Surface information gaps, conflicts, AI inference, dynamic reminders, and QC suggestions
-- Block missing, unconfirmed, invalid, and contradictory no-information RAG from formal Excel export
-- Keep blocked knowledge visible in the Knowledge Review Center
-- Normalize common TTS-sensitive prices, units, percentages, and driving-assistance abbreviations
-- Read model configuration from Streamlit Secrets, environment variables, or local `.env`
-- Run with Streamlit Community Cloud-oriented runtime and dependency files
+```text
+RAG_MAX_CONCURRENCY=2
+QC_MODE=full
+```
 
-## Current Task
+`QC_MODE=rule_first` exists only as an experimental capability in RC1.
 
-V0.8.0 Milestone 3A: Rule-based Knowledge Change Detection.
+## Completed V0.8 Work
 
-Completed in Milestone 1:
-
-- Create a dual-mode Home page for Generate and Update.
-- Refactor `app.py` into a lightweight setup and router.
-- Move Generate page rendering into a dedicated page module while preserving business behavior.
-- Add an Update page skeleton without implementing Knowledge Parser, Diff, Review, Merge, or Update Export.
-- Add shared UI styles and components.
-- Add initial Knowledge Object definitions for future adapters.
-
-Completed in Milestone 2:
-
-- Restore standard AutoRAG Excel exports into `KnowledgeItem[]`.
-- Restore Word history knowledge by reusing existing Parser -> Fact Agent -> RAG Agent.
-- Convert generated RAG JSON into `KnowledgeItem[]` through a Knowledge Adapter.
-- Add Restore Manager as the Update mode entrypoint.
-- Show restored knowledge statistics and preview on the Update page.
-
-In progress:
-
-- Compare Old and New `KnowledgeItem[]` through a rule-based Diff Engine.
-- Automatically detect the current update scope from new knowledge.
-- Build limited candidates without full Old x New comparison.
-- Match knowledge conservatively with normalized-question and structured rules.
-- Detect added, updated, unchanged, and review-required knowledge.
-- Treat possible deprecation as a review reason, not an automatic deletion state.
-- Show real Diff statistics and result tabs on the Update page.
-
-Generate freeze rules:
-
-- Do not change Fact extraction rules.
-- Do not change RAG generation rules.
-- Do not change QC rules.
-- Do not change parser behavior.
-- Do not change Excel fields, naming, static/dynamic split, or export quality gate.
+- Architecture and UI foundation
+- Update historical knowledge restore
+- System-standard Word restore
+- Image-dominant Word parsing for new source materials
+- New material generation in Update through existing Parser -> Facts -> RAG
+- Diff V0.2 rule matching
+- Complex relation grouping
+- Exception Review
+- Deterministic Merge
+- Exact Duplicate Cleanup
+- Update dual Excel export
+- Streamlit session state stability
+- Update UX simplification
+- RAG batch concurrency performance optimization
+- QC Rule First experiment framework
 
 ## Next Task
 
-V0.8 Milestone 3C: LLM Semantic Judge strategy, based on real rule-diff bad cases.
+```text
+TASK9 Facts Performance Experiment V0.1
+```
 
-## Future Tasks
+TASK9 goal:
 
-1. Standard Excel to Knowledge Object.
-2. Word material to Facts/RAG/Knowledge Object.
-3. LLM Semantic Judge for ambiguous or high-risk cases.
-4. Review confirmation workflow.
-5. Merge and Update-mode export.
-6. QC-assisted fixing with user accept/ignore choices.
-7. IMAGE_DOMINANT_WORD: extract embedded DOCX images, reuse Qwen vision parsing, merge Material, then run the existing Facts/RAG flow.
+Explore Facts chunking and controlled concurrency in order to reduce Facts wall time without lowering Fact coverage or accuracy.
+
+## TASK9 Guardrails
+
+- Do not change Generate business rules.
+- Do not change Fact prompt without explicit approval.
+- Do not change RAG prompt or RAG batch size.
+- Do not change Diff, Review, Merge, Dedup, or Excel schema.
+- Compare output against the `v0.8.0-rc1` baseline.
+
+## Do Not Start Yet
+
+This checkpoint task only saves and pushes RC1.
+
+Do not begin TASK9 implementation in the RC1 checkpoint task.

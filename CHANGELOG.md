@@ -1,5 +1,65 @@
 # AutoRAG-Studio Changelog
 
+## V0.8.0-rc1 - Update Closed Loop and Performance Baseline
+
+Date: 2026-08-12
+
+Status: Release Candidate
+
+### Added
+
+- Added complete Update mode workflow: Historical Knowledge + New Documents -> Restore -> Unified Knowledge -> Diff -> Complex Relation Grouping -> Exception Review -> Merge -> Exact Duplicate Cleanup -> Export Quality Gate -> Dual Excel Export.
+- Added historical knowledge restore for standard Excel and Word files.
+- Added deterministic system-standard Word restore for:
+  - Schema A: `车系 / 问题 / 答案`
+  - Schema B: `意图名称1 / 意图描述1 / 参考内容1`
+- Added automatic restore format detection so users do not choose Fast or Deep restore modes.
+- Added IMAGE_DOMINANT_WORD support: embedded Word images are extracted, parsed through the existing Vision capability, then sent through the normal Facts/RAG flow.
+- Added Diff V0.2 with intent normalization, model normalization, candidate recall, numeric normalization, GENERAL/DETAIL relation handling, and safer model matching.
+- Added Complex Relation Grouping for `GENERAL_TO_DETAIL`, `DETAIL_TO_GENERAL`, `ONE_TO_MANY`, `MANY_TO_ONE`, and `AMBIGUOUS_RELATION`.
+- Added Exception Review and deterministic Merge for Update mode.
+- Added exact duplicate cleanup before Update export.
+- Added controlled RAG batch concurrency with `RAG_MAX_CONCURRENCY=2`.
+- Added experimental Rule First QC framework with `QC_MODE=full` and `QC_MODE=rule_first`.
+
+### Changed
+
+- Simplified Update UX into: upload materials -> processing result -> scope summary -> change summary -> exception handling when needed -> generate new knowledge base -> download Excel.
+- ADDED knowledge is automatically accepted into the new knowledge base.
+- UPDATED knowledge automatically replaces the matched old knowledge.
+- UNCHANGED knowledge is retained.
+- Complex or uncertain relations enter Exception Review; default handling adds new knowledge while keeping old knowledge.
+- Dynamic lifecycle handling now distinguishes knowledge lifecycle from content topic.
+- Diff detail tables and technical fields are hidden from the default user flow.
+
+### Fixed
+
+- Fixed Streamlit session state and rerun issues in Generate and Update.
+- Fixed Generate internal section navigation so only the active section renders.
+- Fixed raw HTML leakage on the Home page.
+- Fixed lifecycle QC false positives for limited-time benefits involving warranty, service, traffic, and intelligent-driving content.
+- Fixed Single Review cases where only New knowledge existed without an Old candidate.
+- Fixed exact duplicate knowledge entering final production Excel.
+
+### Performance
+
+- RAG benchmark on saved 101 Facts / 4 batches:
+  - `RAG_MAX_CONCURRENCY=1`: 426.05s
+  - `RAG_MAX_CONCURRENCY=2`: 177.89s
+  - Wall-time reduction: 58.25%
+  - Speedup: about 2.40x
+  - Requests: 4 -> 4
+  - Fact coverage: 101/101 -> 101/101
+  - Missing Facts: 0 -> 0
+  - High-value dynamic missing: 0 -> 0
+
+### Notes
+
+- `RAG_MAX_CONCURRENCY=2` is the RC1 default, with `1` retained as a rollback setting.
+- `QC_MODE=full` remains the RC1 production default.
+- `QC_MODE=rule_first` is experimental. Current offline routing on a marketing-policy sample routed 78/82 knowledge items to LLM QC, so performance value is limited for that scenario.
+- Generate business logic, prompts, Excel schema, and export quality gate remain unchanged.
+
 ## V0.8.0-dev - Rule-based Knowledge Change Detection
 
 Date: 2026-07-29

@@ -1,317 +1,279 @@
 # AutoRAG-Studio Project Context
 
-Version: V0.8.0-dev
+Version: V0.8.0-rc1
 
-Status: V0.8 Milestone 3A - Rule-based Knowledge Change Detection
+Status: Release Candidate 1 Stable Checkpoint
 
-Last Update: 2026-07-26
+Last Update: 2026-08-12
 
-## 1. Project Goal
+## Current Stable Candidate
 
-AutoRAG-Studio is a knowledge generation and review platform for enterprise Agent scenarios.
+`v0.8.0-rc1` is the current V0.8 stable candidate.
 
-Current primary scenario:
+This checkpoint preserves the completed Generate baseline, the V0.8 Update closed loop, and the first-stage performance baseline before TASK9 Facts Performance Experiment begins.
 
-- Automotive AI outbound calls
-- Lead qualification
-- Store visit invitation
-- Handoff to human sales
+## Product Goal
 
-The product is not designed for online transaction closing. Final landing price, financing approval, discount stacking, and store-specific commitments are handled by human sales.
+AutoRAG-Studio is a knowledge generation, review, and update platform for enterprise Agent scenarios, especially automotive AI outbound-call knowledge bases.
 
-## 2. Current Architecture
-
-Pipeline:
+Product principle:
 
 ```text
-File Upload
+网页负责分析，Excel负责生产；系统负责判断，用户负责确认。
+```
+
+## Generate Status
+
+Generate is stable and remains business-frozen.
+
+Current Generate chain:
+
+```text
+Document
 -> Parser
--> Step1 Fact Agent
--> Step2 RAG Agent
--> Step3 QC Agent
--> Excel Generator
--> Streamlit Review Console
+-> Facts
+-> RAG
+-> QC
+-> Check Center
+-> Dual Excel Export
 ```
 
-Main modules:
+Do not change Generate prompts, Fact rules, RAG rules, QC prompt, parser behavior, Excel schema, static/dynamic split, or export quality gate unless a separately confirmed bug requires it.
 
-- `parser/`: docx, xlsx, pdf, txt, image parsing
-- `agents/fact_agent.py`: fact extraction and information gaps
-- `agents/rag_agent.py`: RAG knowledge generation
-- `agents/qc_agent.py`: quality checks
-- `generator/excel_generator.py`: static/dynamic Excel export
-- `app.py`: Streamlit app setup, navigation, and page routing
-- `pages/`: Home, Generate, and Update page renderers
-- `ui/`: shared Streamlit styles and reusable UI components
-- `knowledge/`: Knowledge Object definitions, restore adapters, Excel restore, Word restore, and restore manager
-- `diff/`: rule-based knowledge matching, change detection, update scope detection, and Diff result models
-- `review/`, `merge/`, `exporter/`: V0.8 workflow placeholders
-- `prompts/`: Step1, Step2, Step3 prompt rules
-- `schemas/`: export schema reference
+## Update RC1 Status
 
-V0.8 keeps the Generate business pipeline frozen and adds the platform foundation for two work modes:
-
-- Generate: create a new knowledge base from source materials. This remains the stable production workflow.
-- Update: restore historical knowledge into unified `KnowledgeItem` objects, then in later milestones compare old knowledge with new materials.
-
-Milestone 2 Update restore flow:
+Update has a complete V0.8 RC1 closed loop:
 
 ```text
-Standard Excel
--> Excel Restore
--> KnowledgeItem[]
-
-Word
--> Existing Parser
--> Existing Fact Agent
--> Existing RAG Agent
--> Knowledge Adapter
--> KnowledgeItem[]
-```
-
-Milestone 2 still does not implement Diff, Review decisions, Merge, or Update-mode Excel export.
-
-Milestone 3A Update diff flow:
-
-```text
-Old KnowledgeItem[]
+Historical Knowledge
 +
-New KnowledgeItem[]
--> Scope Detection
--> Candidate Building
--> Rule Match
--> Change Detection
--> DiffResult[]
+New Documents
+-> Restore
+-> Unified Knowledge
+-> Diff V0.2
+-> Complex Relation Grouping
+-> Exception Review
+-> Merge
+-> Exact Duplicate Cleanup
+-> Export Quality Gate
+-> Dual Excel Export
 ```
 
-Diff page states:
-
-- Added
-- Updated
-- Unchanged
-- Review Required
-
-Possible deprecation is a `ReviewReason`, not a deletion state. Old knowledge remains preserved unless a later human Review/Merge step decides otherwise.
-
-## 3. Current Data Design
-
-Vehicle hierarchy:
-
-```json
-{
-  "brand": "",
-  "model": "",
-  "trim": ""
-}
-```
-
-Knowledge lifecycle:
+The normal Update page flow is:
 
 ```text
-static  -> vehicle configuration knowledge
-dynamic -> price and policy knowledge
+上传资料
+-> 处理完成
+-> 本轮资料范围
+-> 本轮变化
+-> 处理异常（仅必要时）
+-> 生成新版知识库
+-> 下载 Excel
 ```
 
-Final Excel output:
+Normal successful flows no longer show restore logs, parser logs, Facts/RAG logs, API transport logs, full restore previews, new knowledge previews, expanded Diff tables, or normal ADDED/UPDATED review cards.
 
-- `{brand}{model}_车型配置知识库.xlsx`
-- `{brand}{model}_价格政策知识库.xlsx`
+## Historical Restore
 
-Excel columns:
+Supported historical inputs:
 
-- 车型
-- 版本
-- 问题
-- 回答
-- 分类
+- Standard AutoRAG Excel exports
+- Word knowledge files
 
-Internal JSON keeps richer fields for review and future update features:
+System-standard Word restore is deterministic and fast. Supported historical structures include:
 
-- intent
-- fact_refs
-- confidence
-- guardrails
-- need_confirm
-- review_type
-- knowledge_type
-- exportable
-- export_block_reason
-- model_normalized
-- model_display_name
+- Schema A: `车系 / 问题 / 答案`
+- Schema B: `意图名称1 / 意图描述1 / 参考内容1`
 
-Formal Excel export is protected by a quality gate. Items are not exported when they are:
+Users do not select Fast Restore or Deep Restore. The system detects the format and routes automatically.
 
-- `answer_type == "need_confirm"`
-- `need_confirm == "是"`
-- `review_type` in `missing`, `conflict`, or `inference`
-- `knowledge_status` in `missing`, `unconfirmed`, or `invalid`
+## Image-Dominant Word
+
+`IMAGE_DOMINANT_WORD` is supported for new source materials.
+
+When a Word file contains little body text and the main business content is embedded as images:
+
+```text
+Extract embedded business images
+-> Existing Vision parsing
+-> Material text
+-> Facts
+-> RAG
+```
+
+Historical Restore remains separate from this new-material parser path.
+
+## Diff V0.2
+
+User-facing Diff states remain:
+
+- ADDED
+- UPDATED
+- UNCHANGED
+- REVIEW_REQUIRED
+
+Diff V0.2 includes:
+
+- Intent normalization
+- Model normalization
+- Candidate recall
+- Numeric normalization
+- GENERAL/DETAIL complex relation detection
+- 1:N and N:1 safe handling
+- Guardrails against obvious model mismatches such as H6 vs H6L
+
+## Review, Merge, and Export
+
+Default Update decisions:
+
+```text
+ADDED -> automatically accept new knowledge
+UPDATED -> automatically use new knowledge to replace old knowledge
+UNCHANGED -> retain old knowledge
+Complex or uncertain relation -> Exception Review
+```
+
+Dynamic knowledge, including price, finance, benefits, promotions, and marketing policies, is automatically updated when Diff clearly identifies a safe 1:1 UPDATED relation.
+
+Complex relations support:
+
+- GENERAL_TO_DETAIL
+- DETAIL_TO_GENERAL
+- ONE_TO_MANY
+- MANY_TO_ONE
+- AMBIGUOUS_RELATION
+
+Complex relation default:
+
+```text
+Add new knowledge
++
+Keep old knowledge
+```
+
+Old knowledge is removed only when the user explicitly chooses replacement.
+
+Single Review is restricted to:
+
+```text
+1 Old
++
+1 New
++
+related but not safe to automatically replace
+```
+
+Cases with New only are treated as ADDED and do not enter Single Review.
+
+## Exact Duplicate Cleanup
+
+Final Update production flow:
+
+```text
+Merge
+-> Final Knowledge
+-> Exact Duplicate Cleanup
+-> Export
+```
+
+Only exact duplicates are cleaned automatically after safe normalization of:
+
+```text
+model
+version
+question
+answer
+category
+```
+
+The cleanup does not remove:
+
+- same question with different answers
+- different versions
+- different models
+- similar questions
+- semantic duplicates
+
+## Export Quality Gate
+
+Formal Excel export still uses the existing `is_exportable_rag()` gate.
+
+The following cannot enter production Excel:
+
+- `need_confirm == 是`
+- `answer_type == need_confirm`
+- `review_type` in `missing`, `conflict`, `inference`
+- `knowledge_status` in `missing`, `unconfirmed`, `invalid`
 - empty answers or explicit missing-answer placeholders
 
-## 4. V0.6 Completed Scope
-
-V0.6 is complete and frozen as V0.6.6 Stable.
-
-Completed:
-
-- Static/dynamic knowledge classification
-- Brand/model/trim vehicle hierarchy
-- Model-level knowledge aggregation
-- Version-difference knowledge generation
-- Duplicate knowledge reduction
-- AI outbound-call answer style optimization
-- Dual Excel export
-- Streamlit review console
-- Knowledge review center
-- QC checks for duplicate, range, answer length, intent granularity, price overview, and compliance risks
-- QC static/dynamic false-positive fix for warranty, roadside assistance, traffic package, and vehicle capability knowledge
-
-## 5. Current Review Console
-
-Pages:
-
-- 生成概览
-- 车型配置知识
-- 价格政策知识
-- 知识检查中心
-- QC报告
-- 下载
-
-Knowledge Review Center sections:
-
-- 信息缺失
-- 信息冲突
-- AI推断
-- 动态知识提醒
-
-## 6. V0.7.0 Image Parser MVP
-
-V0.7.0 adds image material recognition through Qwen-VL-Plus.
-
-Supported image formats:
-
-- PNG
-- JPG
-- JPEG
-- WEBP
-
-Model responsibilities:
-
-- DeepSeek-V4-Flash: Fact extraction, RAG generation, QC
-- Qwen-VL-Plus: image to Material text only
-
-Image parsing flow:
+Two counts must remain distinct:
 
 ```text
-Image file
--> Qwen-VL-Plus
--> plain text Material
--> existing DeepSeek Fact/RAG/QC pipeline
+Final Clean Knowledge
+= Update internal Merge + Exact Dedup complete set
+
+Exportable Knowledge
+= Knowledge that passes the final export quality gate and enters Excel
 ```
 
-Qwen configuration is read from `.env`:
+## Performance Baseline
 
-- `QWEN_API_KEY`
-- `QWEN_BASE_URL`
-- `VISION_MODEL`
+RC1 default:
 
-The parser uses local image bytes encoded as a Base64 Data URL. API keys and Base64 content are not written to run logs.
+```text
+RAG_MAX_CONCURRENCY=2
+```
 
-## 7. V0.7.1 Stable Optimization
+Rollback:
 
-V0.7.1 focuses on business usability for AI outbound-call knowledge bases.
+```text
+RAG_MAX_CONCURRENCY=1
+```
 
-Completed:
+TASK7 benchmark:
 
-- Simplified the knowledge review center into:
-  - 需要人工关注
-  - 需要关注更新
-- Improved multi-model Excel naming:
-  - single model: model name
-  - same brand with multiple models: brand name
-  - multiple brands: 多品牌
-- Fixed QC static/dynamic false positives caused by numeric formats such as `15.6`, `7.1.4`, and `30%-80%`.
-- Added policy-period conflict detection for the same model and category.
-- Added basic policy period fields to Fact output:
-  - `policy_period`
-  - `effective_date`
-  - `expire_date`
-- Added `source_file` guidance for source traceability.
-- Added TTS-oriented RAG answer normalization for units and common driving-assistance abbreviations.
-- Added upload guidance for file count and image size.
+- Input Facts: 101
+- Batch Count: 4
+- Requests: 4 -> 4
+- Concurrency 1: 426.05s
+- Concurrency 2: 177.89s
+- Wall-time reduction: 58.25%
+- Speedup: about 2.40x
+- Fact coverage: 101/101 -> 101/101
+- Missing Facts: 0 -> 0
+- High-value dynamic missing: 0 -> 0
 
-## 8. V0.7.2 Generate Stable Quality Gate
+## QC Status
 
-V0.7.2 fixes the release-candidate issues found in real Avita regression.
+RC1 production default:
 
-Completed:
+```text
+QC_MODE=full
+```
 
-- Missing or unconfirmed RAG items no longer enter formal Excel exports.
-- Contradictory missing-answer RAG items are blocked when the same model and topic already has valid knowledge.
-- Excel export repeats the quality gate as a final safeguard.
-- Blocked knowledge remains visible in the Knowledge Review Center.
-- Knowledge Review Center normalizes old string gaps and structured review objects into consistent fields:
-  - review_type
-  - model
-  - item
-  - reason
-  - suggestion
-- QC static/dynamic mismatch now avoids fixed-benefit false positives.
-- Strong dynamic signals are still detected for limited-time orders, subsidies, deductions, finance rates, and policy periods.
-- RAG answers receive additional TTS normalization for RMB prices, percentages, voltage, traffic packages, and driving-assistance abbreviations.
-- `model_normalized` is added for future V0.8 matching while Excel continues to display `model`.
+Experimental mode:
 
-## 9. V0.7.3 Cloud Ready
+```text
+QC_MODE=rule_first
+```
 
-V0.7.3 prepares AutoRAG-Studio for Streamlit Community Cloud without changing Generate business behavior.
+Rule First QC framework exists, but it remains experimental. On the saved marketing-policy sample:
 
-Completed:
+- Total Knowledge: 82
+- LLM Routed: 78
+- Route Ratio: 95.12%
+- Estimated Requests: 1 -> 1
 
-- Added Streamlit Cloud deployment guide.
-- Added README quick start and safety notes.
-- Added project cleanup report.
-- Added `runtime.txt` with `python-3.11`.
-- Added minimal `.streamlit/config.toml`.
-- Added `.streamlit/secrets.toml.example`.
-- Added unified config lookup:
-  1. Streamlit Secrets
-  2. Environment variables
-  3. Local `.env`
-- Kept `.env`, `.streamlit/secrets.toml`, `.venv`, `output`, generated Excel, caches, logs, and temp files out of Git.
-- Removed only low-risk local Python cache directories.
+Therefore Full QC remains the RC1 default.
 
-V0.7.3 does not change:
+## Next Stage
 
-- Fact extraction rules
-- RAG generation strategy
-- QC policy rules
-- Export quality gate logic
-- Excel naming
-- Excel fields
-- Static/dynamic split
+Do not expand V0.8 Update business features before V0.8 final.
 
-## 10. Known Constraints
+Next task:
 
-- Image parsing is available as a V0.7.0 MVP through Qwen-VL-Plus.
-- PPT parsing is not implemented.
-- No database, user permission system, project management, or version management yet.
-- QC is advisory and can still require manual business review.
-- Tests are mainly regression and smoke checks, not a complete automated test suite.
-- V0.7.0 image parsing does not include OCR coordinates, image cropping, image correction, PPT parsing, or multimodal model routing.
-- A single image is limited to 10MB in the MVP.
-- Policy-period detection only reports mixed periods; it does not automatically delete or expire historical policy knowledge.
-- V0.7.2 blocks unsafe export rows, but it does not automatically rewrite or repair them.
-- V0.7.3 has not been deployed from this local environment because Streamlit Community Cloud access requires the user's account.
+```text
+TASK9 Facts Performance Experiment V0.1
+```
 
-## 11. Next Phase
-
-After V0.7.3 Cloud Ready stabilization, the next phase will focus on knowledge update mode:
-
-1. Upload old knowledge base plus new policy material.
-2. Automatically detect added, changed, and expired policy knowledge.
-3. Update the price policy knowledge base without regenerating all static knowledge.
-
-Future roadmap:
-
-1. Old knowledge base plus new policy material automatic update.
-2. Image material parsing enhancement.
-3. QC-assisted fixing where users choose to accept or ignore suggestions.
+TASK9 should explore Facts chunking and controlled concurrency without reducing Fact coverage or accuracy.
