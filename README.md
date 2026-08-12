@@ -1,10 +1,10 @@
 # AutoRAG-Studio
 
-Current version: V0.7.3 Cloud Ready
+Current version: V0.8.0
 
-AutoRAG-Studio generates reviewable AI outbound-call knowledge bases from automotive business materials.
+AutoRAG-Studio generates and updates reviewable AI outbound-call knowledge bases from automotive business materials.
 
-V0.7.3 only adds cloud deployment and engineering readiness. Generate business behavior remains based on the V0.7.2 stable baseline.
+V0.8.0 keeps the Generate workflow stable and adds the Update workflow for restoring historical knowledge, detecting changes, merging decisions, and exporting a new production-ready knowledge base.
 
 ## What It Does
 
@@ -16,7 +16,7 @@ Supported inputs:
 - TXT: `.txt`
 - Images: `.png`, `.jpg`, `.jpeg`, `.webp`
 
-Pipeline:
+Generate pipeline:
 
 ```text
 Upload files
@@ -25,6 +25,20 @@ Upload files
 -> RAG Agent
 -> QC Agent
 -> Knowledge Review Center
+-> Dual Excel export
+```
+
+Update pipeline:
+
+```text
+Historical knowledge
++ new source materials
+-> Restore
+-> Facts/RAG
+-> Diff V0.2
+-> Exception Review
+-> Merge
+-> Exact Duplicate Cleanup
 -> Dual Excel export
 ```
 
@@ -45,6 +59,16 @@ Excel columns stay fixed:
 
 - DeepSeek: Fact extraction, RAG generation, QC.
 - Qwen-VL-Plus: image material recognition only.
+
+## Production Defaults
+
+```env
+FACTS_MODE=single
+RAG_MAX_CONCURRENCY=2
+QC_MODE=full
+```
+
+`FACTS_MODE=chunked` and `QC_MODE=rule_first` are experimental and are not the V0.8.0 production defaults.
 
 ## Local Setup
 
@@ -112,22 +136,24 @@ Please do not upload customer-sensitive, unpublished, confidential, or personal 
 
 ## Current Boundaries
 
-Not included in V0.7.3:
+Not included in V0.8.0:
 
-- Knowledge base incremental update
 - QC auto-fix Agent Loop
 - PPT parsing
 - Database
 - User permission system
 - Project management
+- Cloud deployment for the final V0.8.0 release
+- Default rollout of chunked Facts extraction
+- Default rollout of Rule First QC
+- Semantic Judge / Embedding / Vector DB
 
 ## Next Phase
 
-V0.8 will focus on knowledge update mode:
+Next steps are user-decided:
 
 ```text
-Old knowledge base
-+ new policy material
--> detect additions, changes, and expired policies
--> update price policy knowledge
+V0.8 Cloud Deployment
+or
+Post-release planning
 ```

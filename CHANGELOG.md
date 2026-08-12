@@ -1,5 +1,98 @@
 # AutoRAG-Studio Changelog
 
+## V0.8.0 - Update Closed Loop Final Release
+
+Date: 2026-08-12
+
+Status: Final Release
+
+### Added
+
+- Released the complete Update mode production loop: Historical Knowledge + New Documents -> Restore -> Facts/RAG -> Diff V0.2 -> Complex Relation Grouping -> Exception Review -> Merge -> Exact Duplicate Cleanup -> Export Quality Gate -> Dual Excel Export.
+- Added historical restore for standard AutoRAG Excel exports and system-standard Word knowledge files.
+- Added deterministic system-standard Word restore for:
+  - Schema A: `车型 / 问题 / 答案`
+  - Schema B: `意图名称1 / 意图描述1 / 参考内容1`
+- Added automatic restore routing, including AI fallback for non-standard Word files when deterministic restore is insufficient.
+- Added IMAGE_DOMINANT_WORD handling for new source materials: embedded Word images are extracted, parsed with the existing Vision capability, then sent through the normal Facts/RAG pipeline.
+- Added Diff V0.2 with intent normalization, model normalization, candidate matching, candidate recall, numeric normalization, and complex relation grouping.
+- Added Exception Review, deterministic Merge, and Update dual Excel export using the existing Generate Excel schema.
+- Added exact duplicate cleanup between Merge and Export.
+
+### Changed
+
+- Simplified Update into a production workflow: upload materials -> processing complete -> scope summary -> change summary -> exception handling if needed -> generate new knowledge base -> download Excel.
+- ADDED knowledge is automatically included in the new knowledge base.
+- Clear 1:1 UPDATED knowledge automatically replaces the matched old knowledge.
+- UNCHANGED knowledge is automatically retained.
+- Complex or uncertain relations keep the safe default of adding new knowledge while keeping old knowledge unless the user explicitly chooses replacement.
+- Single Review is restricted to exactly one Old item plus one New item with a known relation that cannot be safely auto-replaced.
+- Dynamic knowledge such as price, finance, benefits, promotions, and marketing policies is auto-updated when Diff determines a safe 1:1 update.
+
+### Fixed
+
+- Fixed Streamlit session state and rerun stability across Generate and Update.
+- Fixed Generate internal navigation so section filters no longer cause multiple panels to render.
+- Fixed raw HTML leakage on the Home page.
+- Fixed lifecycle QC false positives where limited-time benefits involving warranty, service, traffic, and intelligent-driving content were incorrectly treated as static.
+- Fixed Single Review cases where only New knowledge existed without an Old candidate.
+- Fixed exact duplicate knowledge entering final production Excel.
+- Fixed oversized Facts chunk splitting for experimental chunked Facts mode.
+
+### Performance
+
+- Production default keeps `FACTS_MODE=single`, `RAG_MAX_CONCURRENCY=2`, and `QC_MODE=full`.
+- TASK7 RAG benchmark:
+  - `RAG_MAX_CONCURRENCY=1`: 426.05s
+  - `RAG_MAX_CONCURRENCY=2`: 177.89s
+  - Wall-time reduction: 58.25%
+  - Speedup: about 2.40x
+  - Requests: 4 -> 4
+- TASK10 final Generate validation:
+  - Old baseline: about 807.78s
+  - V0.8 final: 465.41s
+  - Total wall-time reduction: 42.38%
+
+### Validation
+
+- Generate E2E release validation:
+  - Parser: 0.81s
+  - Facts: 230.85s
+  - RAG: 122.25s
+  - QC: 111.32s
+  - Excel: 0.16s
+  - Facts: 49
+  - RAG: 68
+  - Exportable: 68
+- Update E2E release validation:
+  - Old Knowledge: 1136
+  - New Knowledge: 68
+  - ADDED: 39
+  - UPDATED: 10
+  - UNCHANGED: 1126
+  - REVIEW_REQUIRED: 19
+  - Complex Groups: 7
+  - Single Reviews: 0
+  - Final Clean Knowledge: 1193
+  - Exportable Knowledge: 1193
+- Facts Coverage Release Gate:
+  - Result: PASS WITH MINOR BACKLOG
+  - Same 12081-character input, `FACTS_MODE=single`, `deepseek-v4-flash`, temperature 0.2
+  - TASK9 Single: 102 Facts
+  - TASK10: 49 Facts
+  - Canonical model coverage: 11/11
+  - Price coverage: 6/6
+  - Finance coverage: 13/13
+  - Source numeric signal missing: 0
+  - Main difference: MERGED / SPLIT_DIFFERENTLY, not a release blocker.
+
+### Experimental
+
+- `FACTS_MODE=chunked` remains experimental and is not the production default. It showed about 27% wall-time improvement in one benchmark, but Fact granularity and scope stability are not yet sufficient for default rollout.
+- `QC_MODE=rule_first` remains experimental and is not the production default. On the saved marketing-policy sample, 78/82 knowledge items were still routed to LLM QC, so the current performance value is limited.
+- Targeted Semantic Judge is not included in V0.8.0.
+- Cloud deployment is not part of this release task.
+
 ## V0.8.0-rc1 - Update Closed Loop and Performance Baseline
 
 Date: 2026-08-12

@@ -1,6 +1,6 @@
 # AutoRAG-Studio Roadmap
 
-Current Stable Candidate: `v0.8.0-rc1`
+Current Stable: `v0.8.0`
 
 Current Branch: `feature/v0.8-architecture-ui`
 
@@ -68,11 +68,11 @@ Completed:
 - Deployment documentation
 - Project cleanup classification
 
-## V0.8 RC1 Completed Scope
+## V0.8 Final Completed Scope
 
-Status: Release Candidate
+Status: Completed
 
-Tag: `v0.8.0-rc1`
+Tag: `v0.8.0`
 
 ### Architecture
 
@@ -129,63 +129,72 @@ Tag: `v0.8.0-rc1`
 ### Performance
 
 - RAG Performance V0.1 completed
-- `RAG_MAX_CONCURRENCY=2` is the RC1 default
+- `RAG_MAX_CONCURRENCY=2` is the V0.8 production default
 - Benchmark: 426.05s -> 177.89s, down 58.25%, about 2.40x speedup
+- End-to-end Generate validation improved the old baseline from about 807.78s to 465.41s, down 42.38%
 
 ### QC Experiment
 
 - QC Rule First framework completed
-- `QC_MODE=full` remains RC1 default
+- `QC_MODE=full` remains V0.8 production default
 - `QC_MODE=rule_first` remains experimental because the marketing-policy sample routed 78/82 items to LLM QC
+
+### Facts Experiment
+
+- Experimental chunked Facts extraction completed
+- Oversized block safe splitting completed
+- `FACTS_MODE=single` remains the V0.8 production default
+- `FACTS_MODE=chunked` remains experimental because Fact granularity and scope stability need further hardening
+
+### Release Validation
+
+- TASK10 End-to-End Release Validation completed
+- TASK10.1 Facts Coverage Release Gate completed with PASS WITH MINOR BACKLOG
+- V0.8 has no known P0/P1 release blocker
 
 ## Next Planned Work
 
-### TASK9 - Facts Performance Experiment V0.1
+### V0.8 Cloud Deployment
 
-Status: Next
+Status: Waiting for user decision
 
 Goal:
 
-Explore Facts chunking and controlled concurrency while preserving Fact coverage and accuracy.
-
-Constraints:
-
-- Do not change Fact prompt or extraction rules unless separately approved
-- Do not reduce Fact coverage
-- Compare quality against the RC1 baseline
+Deploy V0.8.0 after final release tagging and GitHub push.
 
 ### End-to-End Performance Benchmark
 
-Status: Planned after TASK9
+Status: Future
 
 Goal:
 
-Measure Generate and Update total wall time after RAG and Facts performance experiments.
+Continue measuring production workloads after cloud deployment or additional local acceptance.
 
-### V0.8.0 Final
+### Post-release Planning
 
-Status: Planned
-
-Goal:
-
-Freeze the V0.8 Update closed loop after TASK9 and end-to-end benchmark validation.
-
-### Cloud Deployment
-
-Status: Planned after V0.8.0 Final
+Status: Future
 
 Goal:
 
-Deploy the final V0.8 branch after performance and quality validation.
+Plan V0.8.x or V0.9 based on real user acceptance and production badcases.
 
 ## Deferred Work
 
-- Semantic Judge for targeted low-confidence or complex cases
+- Facts non-determinism and granularity stability
+- Chunked Facts quality improvement
+- Adaptive Facts routing
+- QC Rule First routing optimization
+- Targeted Semantic Judge for low-confidence or complex cases if needed
 - Embedding or vector search
 - QC concurrency
-- QC Rule First default rollout
 - Facts prompt changes
 - Batch size experiments
+- Cloud Deployment
+- Version History
+- Incremental Update history
+- Dynamic policy lifecycle
+- UI detail polish
+- Official website/source-material entry
 - Account system
 - Database persistence
 - Task history center

@@ -1,16 +1,16 @@
 # AutoRAG-Studio Project Context
 
-Version: V0.8.0-rc1
+Version: V0.8.0
 
-Status: Release Candidate 1 Stable Checkpoint
+Status: Final Release
 
 Last Update: 2026-08-12
 
-## Current Stable Candidate
+## Current Stable
 
-`v0.8.0-rc1` is the current V0.8 stable candidate.
+`v0.8.0` is the current stable release.
 
-This checkpoint preserves the completed Generate baseline, the V0.8 Update closed loop, and the first-stage performance baseline before TASK9 Facts Performance Experiment begins.
+This release preserves the completed Generate baseline, the V0.8 Update closed loop, the RAG performance improvement, and the final release validation results.
 
 ## Product Goal
 
@@ -40,9 +40,9 @@ Document
 
 Do not change Generate prompts, Fact rules, RAG rules, QC prompt, parser behavior, Excel schema, static/dynamic split, or export quality gate unless a separately confirmed bug requires it.
 
-## Update RC1 Status
+## Update V0.8 Status
 
-Update has a complete V0.8 RC1 closed loop:
+Update has a complete V0.8 closed loop:
 
 ```text
 Historical Knowledge
@@ -216,9 +216,23 @@ Exportable Knowledge
 = Knowledge that passes the final export quality gate and enters Excel
 ```
 
+## Production Defaults
+
+V0.8 production defaults:
+
+```text
+FACTS_MODE=single
+RAG_MAX_CONCURRENCY=2
+QC_MODE=full
+MODEL=deepseek-v4-flash
+temperature=0.2
+```
+
+`FACTS_MODE=chunked` and `QC_MODE=rule_first` remain experimental and are not production defaults.
+
 ## Performance Baseline
 
-RC1 default:
+V0.8 default:
 
 ```text
 RAG_MAX_CONCURRENCY=2
@@ -243,9 +257,63 @@ TASK7 benchmark:
 - Missing Facts: 0 -> 0
 - High-value dynamic missing: 0 -> 0
 
+## Final Release Validation
+
+TASK10 Generate E2E:
+
+```text
+Parser: 0.81s
+Facts: 230.85s
+RAG: 122.25s
+QC: 111.32s
+Excel: 0.16s
+Total: 465.41s
+Facts: 49
+RAG: 68
+Exportable: 68
+```
+
+TASK10 Update E2E:
+
+```text
+Old Knowledge: 1136
+New Knowledge: 68
+
+ADDED: 39
+UPDATED: 10
+UNCHANGED: 1126
+REVIEW_REQUIRED: 19
+
+Complex Groups: 7
+Single Reviews: 0
+
+Final Clean: 1193
+Exportable: 1193
+```
+
+TASK10.1 Facts Coverage Release Gate:
+
+```text
+Result: PASS WITH MINOR BACKLOG
+Input: 12081 chars
+FACTS_MODE: single
+Model: deepseek-v4-flash
+temperature: 0.2
+
+TASK9 Single: 102 Facts
+TASK10 Final Generate: 49 Facts
+
+Canonical model coverage: 11/11
+Price coverage: 6/6
+Finance coverage: 13/13
+Source numeric signal missing: 0
+```
+
+The `102 -> 49` Facts difference is mainly from merged and differently split Facts. It is not a V0.8 release blocker.
+
 ## QC Status
 
-RC1 production default:
+Production default:
 
 ```text
 QC_MODE=full
@@ -264,16 +332,17 @@ Rule First QC framework exists, but it remains experimental. On the saved market
 - Route Ratio: 95.12%
 - Estimated Requests: 1 -> 1
 
-Therefore Full QC remains the RC1 default.
+Therefore Full QC remains the V0.8 production default.
+
+## Minor Backlog
+
+- Facts non-determinism and granularity stability
+- Chunked Facts quality improvement before production rollout
+- Rule First QC routing optimization
+- Targeted Semantic Judge for future low-confidence or complex cases if needed
+- Cloud deployment
+- UI detail polish
 
 ## Next Stage
 
-Do not expand V0.8 Update business features before V0.8 final.
-
-Next task:
-
-```text
-TASK9 Facts Performance Experiment V0.1
-```
-
-TASK9 should explore Facts chunking and controlled concurrency without reducing Fact coverage or accuracy.
+Do not expand V0.8 Update business features in the final release line. Next work should be V0.8 Cloud Deployment or post-release planning, depending on user decision.

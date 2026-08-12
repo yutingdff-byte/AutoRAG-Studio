@@ -1,18 +1,18 @@
 # AutoRAG-Studio Current Task
 
-Version: V0.8.0-rc1
+Version: V0.8.0
 
-Status: Stable Checkpoint
+Status: Completed
 
 Last Update: 2026-08-12
 
-## Current Stable Checkpoint
+## Current Stable Release
 
 ```text
-v0.8.0-rc1
+v0.8.0
 ```
 
-The RC1 checkpoint preserves:
+The V0.8 final release preserves:
 
 - Generate stable production chain
 - Update closed loop
@@ -25,15 +25,19 @@ The RC1 checkpoint preserves:
 - Dual Excel Export
 - RAG concurrency performance baseline
 - Experimental Rule First QC framework
+- Experimental chunked Facts framework
+- TASK10 End-to-End Release Validation
+- TASK10.1 Facts Coverage Release Gate
 
 ## Current Production Defaults
 
 ```text
+FACTS_MODE=single
 RAG_MAX_CONCURRENCY=2
 QC_MODE=full
 ```
 
-`QC_MODE=rule_first` exists only as an experimental capability in RC1.
+`FACTS_MODE=chunked` and `QC_MODE=rule_first` exist only as experimental capabilities in V0.8.0.
 
 ## Completed V0.8 Work
 
@@ -52,27 +56,38 @@ QC_MODE=full
 - Update UX simplification
 - RAG batch concurrency performance optimization
 - QC Rule First experiment framework
+- Facts chunking and controlled concurrency experiment framework
+- Oversized Facts chunk safe splitting
+- End-to-end release validation
+- Facts coverage release gate
 
-## Next Task
+## Release Validation
 
 ```text
-TASK9 Facts Performance Experiment V0.1
+TASK10:
+RELEASE READY WITH MINOR BACKLOG
+
+TASK10.1:
+PASS WITH MINOR BACKLOG
 ```
 
-TASK9 goal:
+Known minor backlog:
 
-Explore Facts chunking and controlled concurrency in order to reduce Facts wall time without lowering Fact coverage or accuracy.
+- Facts non-determinism and granularity stability
+- Chunked Facts quality improvement before production rollout
+- Rule First QC routing optimization
+- Targeted Semantic Judge only if future badcases require it
+- Cloud Deployment
+- UI detail polish
 
-## TASK9 Guardrails
+## Next
 
-- Do not change Generate business rules.
-- Do not change Fact prompt without explicit approval.
-- Do not change RAG prompt or RAG batch size.
-- Do not change Diff, Review, Merge, Dedup, or Excel schema.
-- Compare output against the `v0.8.0-rc1` baseline.
+```text
+V0.8 Cloud Deployment / Post-release Planning
+```
 
-## Do Not Start Yet
+Wait for user decision before starting the next task.
 
-This checkpoint task only saves and pushes RC1.
+## Do Not Start Automatically
 
-Do not begin TASK9 implementation in the RC1 checkpoint task.
+Do not begin V0.8.1, V0.9, Cloud Deployment, or new feature development without explicit user instruction.
