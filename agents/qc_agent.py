@@ -1,8 +1,12 @@
 import json
 import re
 from collections import defaultdict
+from time import perf_counter
 
 from agents.llm_client import call_llm
+from qc.risk_router import route_qc_items
+from qc.rule_engine import run_rule_qc
+from utils.config import get_config
 from utils.rag_quality import is_exportable_rag
 
 
@@ -1016,7 +1020,21 @@ def rule_based_quality_checks(rag_data, qc_data):
     )
 
 
-def quality_check(rag_data):
+def _empty_qc_data(total_rag=0, overall_result="需优化"):
+    return {
+        "summary": {
+            "total_rag": total_rag,
+            "pass": 0,
+            "warning": 0,
+            "error": 0
+        },
+        "issues": [],
+        "coverage_check": {},
+        "overall_result": overall_result
+    }
+
+
+def _call_llm_qc(rag_data):
 
     """
     Step3:
@@ -1044,11 +1062,17 @@ def quality_check(rag_data):
         user_content
     )
 
+    from utils.json_parser import parse_json
+    return parse_json(result)
+
+
+def _quality_check_full(rag_data):
 
     try:
 
-        from utils.json_parser import parse_json
-        data = parse_json(result)
+        data = _call_llm_qc(
+            rag_data
+        )
 
         return rule_based_quality_checks(
             rag_data,
@@ -1056,27 +1080,257 @@ def quality_check(rag_data):
         )
 
 
-    except Exception:
+    except Exception as exc:
 
         print("QC JSON解析失败")
-        print(result)
+        print(exc)
 
         return rule_based_quality_checks(
             rag_data,
+            _empty_qc_data(
+                len(
+                    rag_data.get(
+                        "rag_knowledge",
+                        []
+                    )
+                )
+            )
+        )
+
+
+def _subset_rag_data(rag_data, routed_items):
+    subset = dict(
+        rag_data
+    )
+    subset[
+        "rag_knowledge"
+    ] = routed_items
+    return subset
+
+
+def _dedupe_issues(issues):
+    deduped = []
+    seen = set()
+
+    for issue in issues:
+        if not isinstance(
+            issue,
+            dict
+        ):
+            continue
+
+        key = (
+            issue.get(
+                "rag_id",
+                ""
+            ),
+            issue.get(
+                "issue_type",
+                ""
+            ),
+            issue.get(
+                "description",
+                ""
+            )
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(
+            key
+        )
+        deduped.append(
+            issue
+        )
+
+    return deduped
+
+
+def _llm_failure_issues(routed_items, error):
+    issues = []
+    message = str(
+        error
+    )
+
+    for item in routed_items:
+        issues.append(
             {
-                "summary": {
-                    "total_rag": len(
-                        rag_data.get(
-                            "rag_knowledge",
-                            []
-                        )
-                    ),
-                    "pass": 0,
-                    "warning": 0,
-                    "error": 0
-                },
-                "issues": [],
-                "coverage_check": {},
-                "overall_result": "需优化"
+                "rag_id": item.get(
+                    "rag_id",
+                    ""
+                ),
+                "issue_type": "语义QC未完成",
+                "risk_level": "error",
+                "description": "该知识被判定需要语义质检，但模型质检调用或解析失败，不能自动判定通过。",
+                "suggestion": "请稍后重试QC，或切换QC_MODE=full重新执行完整质检。",
+                "detected_by": "rule_first",
+                "error": message[:300]
             }
         )
+
+    return issues
+
+
+def _quality_check_rule_first(rag_data):
+    start_time = perf_counter()
+    rag_items = [
+        item
+        for item in rag_data.get(
+            "rag_knowledge",
+            []
+        )
+        if isinstance(
+            item,
+            dict
+        )
+    ]
+
+    rule_result = run_rule_qc(
+        rag_items
+    )
+    route_result = route_qc_items(
+        rag_items,
+        rule_result.issue_item_ids
+    )
+
+    llm_issues = []
+    llm_error = ""
+    llm_requests = 0
+
+    if route_result.routed_items:
+        llm_requests = 1
+        try:
+            llm_data = _call_llm_qc(
+                _subset_rag_data(
+                    rag_data,
+                    route_result.routed_items
+                )
+            )
+            llm_issues = [
+                issue
+                for issue in llm_data.get(
+                    "issues",
+                    []
+                )
+                if isinstance(
+                    issue,
+                    dict
+                )
+            ]
+            for issue in llm_issues:
+                issue.setdefault(
+                    "detected_by",
+                    "llm"
+                )
+        except Exception as exc:
+            llm_error = str(
+                exc
+            )
+            llm_issues = _llm_failure_issues(
+                route_result.routed_items,
+                exc
+            )
+
+    combined_qc = _empty_qc_data(
+        len(
+            rag_items
+        )
+    )
+    combined_qc[
+        "issues"
+    ] = _dedupe_issues(
+        rule_result.issues + llm_issues
+    )
+    combined_qc[
+        "qc_mode"
+    ] = "rule_first"
+    combined_qc[
+        "rule_first_metrics"
+    ] = {
+        "total_items": len(
+            rag_items
+        ),
+        "rule_checked": rule_result.checked_count,
+        "rule_issues": len(
+            rule_result.issues
+        ),
+        "rule_issue_items": len(
+            rule_result.issue_item_ids
+        ),
+        "rule_passed": len(
+            route_result.passed_items
+        ),
+        "llm_routed": len(
+            route_result.routed_items
+        ),
+        "llm_route_ratio": (
+            len(
+                route_result.routed_items
+            )
+            / len(
+                rag_items
+            )
+            if rag_items
+            else 0
+        ),
+        "llm_requests": llm_requests,
+        "llm_error": llm_error,
+        "qc_wall_time": round(
+            perf_counter() - start_time,
+            3
+        ),
+        "route_decisions": [
+            {
+                "rag_id": decision.rag_id,
+                "route": decision.route,
+                "reasons": decision.reasons
+            }
+            for decision in route_result.decisions
+        ]
+    }
+
+    checked_qc = rule_based_quality_checks(
+        rag_data,
+        combined_qc
+    )
+    checked_qc[
+        "issues"
+    ] = _dedupe_issues(
+        checked_qc.get(
+            "issues",
+            []
+        )
+        + rule_result.issues
+    )
+    checked_qc = refresh_summary(
+        checked_qc,
+        len(
+            rag_items
+        )
+    )
+    checked_qc[
+        "qc_mode"
+    ] = "rule_first"
+    checked_qc[
+        "rule_first_metrics"
+    ] = combined_qc[
+        "rule_first_metrics"
+    ]
+    return checked_qc
+
+
+def quality_check(rag_data):
+    mode = get_config(
+        "QC_MODE",
+        "full"
+    ).strip().lower()
+
+    if mode == "rule_first":
+        return _quality_check_rule_first(
+            rag_data
+        )
+
+    return _quality_check_full(
+        rag_data
+    )
