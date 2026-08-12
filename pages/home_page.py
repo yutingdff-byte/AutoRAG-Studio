@@ -1,0 +1,55 @@
+"""Home page for the V0.8 dual-mode entry."""
+
+from __future__ import annotations
+
+import streamlit as st
+
+from ui.components import render_feature_card, render_page_header, render_section_title
+
+
+def _navigate_to(mode: str) -> None:
+    st.session_state.current_mode = mode
+    st.session_state.navigation_mode = mode
+
+
+def render_home_page() -> None:
+    render_page_header(
+        "AutoRAG-Studio",
+        "AI 知识库生成、检查与持续更新平台。",
+    )
+
+    render_section_title("选择工作模式")
+
+    generate_col, update_col = st.columns(2)
+
+    with generate_col:
+        render_feature_card(
+            "新建知识库 Generate",
+            "上传原始资料，自动提取事实、生成知识并完成质量检查，最终导出车型配置知识库和价格政策知识库。",
+            ["多格式解析", "图片识别", "Facts", "RAG", "QC"],
+            "",
+            "",
+        )
+        st.button(
+            "进入新建知识库",
+            use_container_width=True,
+            key="home_go_generate",
+            on_click=_navigate_to,
+            args=("generate",),
+        )
+
+    with update_col:
+        render_feature_card(
+            "更新知识库 Update",
+            "导入历史知识与新增资料，自动识别变化，确认关键异常后生成新版知识库。",
+            ["历史知识恢复", "差异识别", "异常确认", "合并导出"],
+            "",
+            "",
+        )
+        st.button(
+            "进入更新知识库",
+            use_container_width=True,
+            key="home_go_update",
+            on_click=_navigate_to,
+            args=("update",),
+        )

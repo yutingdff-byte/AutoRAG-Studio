@@ -2,6 +2,13 @@ import json
 import re
 
 from agents.llm_client import call_llm
+from facts.chunker import (
+    DEFAULT_FACTS_CHUNK_MAX_CHARS,
+    DEFAULT_FACTS_CHUNK_TARGET_CHARS,
+    build_fact_chunks,
+)
+from facts.executor import execute_fact_chunks
+from utils.config import get_config
 
 
 STATIC_KEYWORDS = [
@@ -447,30 +454,19 @@ def normalize_fact_knowledge_type(data):
     return data
 
 
-def extract_facts(material):
-
-    """
-    Step1:
-    从车型资料中抽取事实信息
-
-    参数:
-        material:
-            用户上传资料文本
-
-    返回:
-        facts json
-    """
-
-
-    # 读取Prompt
-
+def _read_fact_prompt():
     with open(
         "prompts/step1_prompt.txt",
         "r",
         encoding="utf-8"
     ) as f:
 
-        system_prompt = f.read()
+        return f.read()
+
+
+def _extract_facts_single(material):
+
+    system_prompt = _read_fact_prompt()
 
 
     # 调用大模型
@@ -499,3 +495,92 @@ def extract_facts(material):
         print(result)
 
         return None
+
+
+def _get_int_config(name, default):
+    value = get_config(
+        name,
+        str(default)
+    )
+    try:
+        return int(
+            value
+        )
+    except (TypeError, ValueError):
+        return default
+
+
+def _extract_facts_chunked(material):
+    target_chars = _get_int_config(
+        "FACTS_CHUNK_TARGET_CHARS",
+        DEFAULT_FACTS_CHUNK_TARGET_CHARS
+    )
+    max_chars = _get_int_config(
+        "FACTS_CHUNK_MAX_CHARS",
+        DEFAULT_FACTS_CHUNK_MAX_CHARS
+    )
+    max_concurrency = _get_int_config(
+        "FACTS_MAX_CONCURRENCY",
+        2
+    )
+
+    chunks = build_fact_chunks(
+        material,
+        target_chars=target_chars,
+        max_chars=max_chars
+    )
+
+    print("[FACTS Performance]")
+    print("mode: chunked")
+    print(f"document_chars: {len(str(material or ''))}")
+    print(f"chunk_count: {len(chunks)}")
+    print(f"chunk_target_chars: {target_chars}")
+    print(f"chunk_max_chars: {max_chars}")
+    print(f"max_concurrency: {max_concurrency}")
+
+    result = execute_fact_chunks(
+        chunks,
+        _extract_facts_single,
+        max_concurrency=max_concurrency
+    )
+    report = result.get(
+        "chunk_report",
+        {}
+    )
+    print(f"request_count: {report.get('request_count', 0)}")
+    print(f"raw_facts: {report.get('raw_facts', 0)}")
+    print(f"exact_duplicates_removed: {report.get('exact_duplicates_removed', 0)}")
+    print(f"final_facts: {report.get('final_facts', 0)}")
+    print(f"facts_wall_time: {report.get('wall_time', 0)}")
+    return normalize_fact_knowledge_type(
+        result
+    )
+
+
+def extract_facts(material):
+
+    """
+    Step1:
+    从车型资料中抽取事实信息
+
+    参数:
+        material:
+            用户上传资料文本
+
+    返回:
+        facts json
+    """
+
+    mode = get_config(
+        "FACTS_MODE",
+        "single"
+    ).strip().lower()
+
+    if mode == "chunked":
+        return _extract_facts_chunked(
+            material
+        )
+
+    return _extract_facts_single(
+        material
+    )

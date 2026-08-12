@@ -1,12 +1,14 @@
 # AutoRAG-Studio Roadmap
 
-Current Stable Version: V0.7.2
+Current Stable: `v0.8.0`
 
-Date: 2026-07-18
+Current Branch: `feature/v0.8-architecture-ui`
+
+Date: 2026-08-12
 
 ## Product Direction
 
-AutoRAG-Studio is evolving from an Excel generation tool into an AI knowledge generation, review, and update platform.
+AutoRAG-Studio is evolving from a one-time Excel generation tool into an AI knowledge generation, review, and continuous-update platform.
 
 Core scenario:
 
@@ -17,162 +19,182 @@ AI outbound call
 -> human sales handoff
 ```
 
-## V0.6 Stable - Completed
+## Completed Stable Baselines
+
+### V0.6 Stable
 
 Status: Completed and frozen
 
 Stable tag: `v0.6.6`
 
-Completed capabilities:
+Completed:
 
-- Static and dynamic knowledge split
-- Brand/model/trim vehicle hierarchy
-- Model-level knowledge aggregation
-- Version-difference knowledge generation
-- Static and dynamic dual Excel export
+- Static/dynamic knowledge split
+- Brand/model/trim hierarchy
+- Model-level aggregation
+- Version-difference generation
+- Dual Excel export
 - Streamlit review console
 - Knowledge review center
-- Dynamic knowledge reminders
 - QC report display
-- Price overview knowledge generation
+- Price overview generation
 - QC false-positive reduction for fixed services and vehicle capabilities
 
-V0.6 output:
+### V0.7.2 Generate Stable
 
-- 车型配置知识库
-- 价格政策知识库
-- Review console for gaps, conflicts, AI inference, dynamic reminders, and QC suggestions
+Status: Completed and frozen
 
-## V0.7.0 - Image Material Recognition MVP
-
-Status: In development
-
-Goal:
-
-Support automotive image materials as input without changing the existing Fact/RAG/QC agents.
-
-Supported formats:
-
-- PNG
-- JPG
-- JPEG
-- WEBP
-
-Model responsibilities:
-
-- Qwen-VL-Plus: image to structured plain text Material
-- DeepSeek-V4-Flash: Fact extraction, RAG generation, QC
-
-Out of scope:
-
-- OCR coordinates
-- Image editing or generation
-- Image cropping and correction
-- PPT file parsing
-- Model router
-- Knowledge update mode
-
-## V0.7.1 - Stable Business Optimization
-
-Status: Completed
-
-Goal:
-
-Make generated knowledge more suitable for real AI outbound-call delivery.
+Stable tag: `v0.7.2`
 
 Completed:
 
-- Simplified knowledge review center.
-- Fixed multi-model Excel naming.
-- Added policy-period conflict QC.
-- Reduced QC date false positives.
-- Improved structural coverage checks for information gaps.
-- Added source file and policy period guidance.
-- Improved unit and abbreviation pronunciation for TTS.
-- Added upload guidance for file count and image size.
+- Export quality gate
+- Missing, unconfirmed, invalid, conflict, and inference knowledge blocked from Excel
+- Knowledge Review Center normalization
+- Static/dynamic lifecycle QC improvements
+- TTS cleanup for prices, percentages, traffic packages, voltage, and abbreviations
+- Generate output retained as the stable production baseline
 
-## V0.7.2 - Generate Stable Quality Gate
+### V0.7.3 Cloud Ready
 
 Status: Completed
 
-Goal:
-
-Freeze the Generate module by preventing unsafe or contradictory knowledge from entering formal outbound-call Excel files.
-
 Completed:
 
-- Missing, unconfirmed, invalid, and conflict/inference review RAG items are blocked from Excel export.
-- RAG post-processing and Excel export share the same exportability rules.
-- Contradictory missing-answer RAG is blocked when the same model and topic already has effective knowledge.
-- Blocked knowledge is moved into the Knowledge Review Center for human attention.
-- Fixed static/dynamic QC false positives for fixed benefits and vehicle capabilities.
-- Kept real limited-time policy signals detectable.
-- Normalized Knowledge Review Center rows so model, item, reason, and suggestion are not blank.
-- Added TTS cleanup for RMB prices, percentages, voltage, traffic package wording, and common abbreviations.
-- Added lightweight model normalization for future matching.
+- Streamlit Community Cloud compatibility
+- Runtime and dependency pinning
+- Streamlit Secrets support
+- Local `.env` compatibility
+- Deployment documentation
+- Project cleanup classification
 
-## V0.8 - Knowledge Update Mode
+## V0.8 Final Completed Scope
 
-Status: Next
+Status: Completed
+
+Tag: `v0.8.0`
+
+### Architecture
+
+- V0.8 Architecture and UI Foundation
+- Home page with Generate and Update entries
+- Separate page modules and shared UI components
+- Unified `KnowledgeItem` foundation
+
+### Restore
+
+- Standard Excel Restore
+- System-standard Word Restore
+- Automatic restore format detection
+- Supported Word schemas:
+  - `车系 / 问题 / 答案`
+  - `意图名称1 / 意图描述1 / 参考内容1`
+
+### New Material Parsing
+
+- Existing text/Excel/PDF/TXT/image parsing retained
+- IMAGE_DOMINANT_WORD support for embedded Word business images
+- Existing Vision capability reused for embedded images
+
+### Diff
+
+- Diff V0.2
+- Intent normalization
+- Model normalization
+- Candidate recall
+- Numeric normalization
+- GENERAL/DETAIL relation detection
+- 1:N and N:1 safe handling
+- Model mismatch guardrails
+
+### Review, Merge, Export
+
+- Exception Review
+- Complex Relation Grouping
+- Deterministic Merge
+- ADDED auto-accept
+- UPDATED auto-replace
+- UNCHANGED keep old
+- Complex/uncertain relations reviewed only when needed
+- Exact Duplicate Cleanup before export
+- Update dual Excel export using existing Generate schema and quality gate
+
+### UX Simplification
+
+- Update workflow simplified to result-first production flow
+- Normal success path hides technical logs and large previews
+- Diff detail tables moved behind optional audit details
+- Ordinary ADDED/UPDATED review removed from the main flow
+
+### Performance
+
+- RAG Performance V0.1 completed
+- `RAG_MAX_CONCURRENCY=2` is the V0.8 production default
+- Benchmark: 426.05s -> 177.89s, down 58.25%, about 2.40x speedup
+- End-to-end Generate validation improved the old baseline from about 807.78s to 465.41s, down 42.38%
+
+### QC Experiment
+
+- QC Rule First framework completed
+- `QC_MODE=full` remains V0.8 production default
+- `QC_MODE=rule_first` remains experimental because the marketing-policy sample routed 78/82 items to LLM QC
+
+### Facts Experiment
+
+- Experimental chunked Facts extraction completed
+- Oversized block safe splitting completed
+- `FACTS_MODE=single` remains the V0.8 production default
+- `FACTS_MODE=chunked` remains experimental because Fact granularity and scope stability need further hardening
+
+### Release Validation
+
+- TASK10 End-to-End Release Validation completed
+- TASK10.1 Facts Coverage Release Gate completed with PASS WITH MINOR BACKLOG
+- V0.8 has no known P0/P1 release blocker
+
+## Next Planned Work
+
+### V0.8 Cloud Deployment
+
+Status: Waiting for user decision
 
 Goal:
 
-Support partial updates for dynamic policy knowledge without regenerating the full knowledge base.
+Deploy V0.8.0 after final release tagging and GitHub push.
 
-Planned workflow:
+### End-to-End Performance Benchmark
 
-```text
-Upload old knowledge base
-+ Upload new policy material
--> Detect changes
--> Generate update suggestions
--> Export updated price policy knowledge base
-```
-
-Planned capabilities:
-
-- Identify added policies
-- Identify changed policies
-- Identify expired policies
-- Preserve unchanged static knowledge
-- Generate update diff report
-- Export updated dynamic knowledge
-
-## V0.8.x - Multimodal Material Parsing Enhancement
-
-Status: Planned
-
-Planned capabilities:
-
-- Image material parsing
-- Campaign poster parsing
-- Rights and benefits image extraction
-- PPT parsing after image support is stable
-
-## V0.9 - QC-Assisted Fixing
-
-Status: Planned
+Status: Future
 
 Goal:
 
-Allow users to review QC suggestions and choose whether to accept or ignore AI-assisted fixes.
+Continue measuring production workloads after cloud deployment or additional local acceptance.
 
-Planned capabilities:
+### Post-release Planning
 
-- Suggested rewrite for overlong answers
-- Suggested split for mixed-intent FAQ
-- Suggested category correction
-- User accept/ignore workflow
-- Review history
+Status: Future
 
-## V1.0 - Knowledge Operations Platform
+Goal:
 
-Status: Long-term
+Plan V0.8.x or V0.9 based on real user acceptance and production badcases.
 
-Planned capabilities:
+## Deferred Work
 
-- Project management
-- Knowledge base version management
-- Update history
-- Multi-user collaboration
-- Knowledge lifecycle operations
+- Facts non-determinism and granularity stability
+- Chunked Facts quality improvement
+- Adaptive Facts routing
+- QC Rule First routing optimization
+- Targeted Semantic Judge for low-confidence or complex cases if needed
+- Embedding or vector search
+- QC concurrency
+- Facts prompt changes
+- Batch size experiments
+- Cloud Deployment
+- Version History
+- Incremental Update history
+- Dynamic policy lifecycle
+- UI detail polish
+- Official website/source-material entry
+- Account system
+- Database persistence
+- Task history center

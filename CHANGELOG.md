@@ -1,5 +1,280 @@
 # AutoRAG-Studio Changelog
 
+## V0.8.0 - Update Closed Loop Final Release
+
+Date: 2026-08-12
+
+Status: Final Release
+
+### Added
+
+- Released the complete Update mode production loop: Historical Knowledge + New Documents -> Restore -> Facts/RAG -> Diff V0.2 -> Complex Relation Grouping -> Exception Review -> Merge -> Exact Duplicate Cleanup -> Export Quality Gate -> Dual Excel Export.
+- Added historical restore for standard AutoRAG Excel exports and system-standard Word knowledge files.
+- Added deterministic system-standard Word restore for:
+  - Schema A: `车型 / 问题 / 答案`
+  - Schema B: `意图名称1 / 意图描述1 / 参考内容1`
+- Added automatic restore routing, including AI fallback for non-standard Word files when deterministic restore is insufficient.
+- Added IMAGE_DOMINANT_WORD handling for new source materials: embedded Word images are extracted, parsed with the existing Vision capability, then sent through the normal Facts/RAG pipeline.
+- Added Diff V0.2 with intent normalization, model normalization, candidate matching, candidate recall, numeric normalization, and complex relation grouping.
+- Added Exception Review, deterministic Merge, and Update dual Excel export using the existing Generate Excel schema.
+- Added exact duplicate cleanup between Merge and Export.
+
+### Changed
+
+- Simplified Update into a production workflow: upload materials -> processing complete -> scope summary -> change summary -> exception handling if needed -> generate new knowledge base -> download Excel.
+- ADDED knowledge is automatically included in the new knowledge base.
+- Clear 1:1 UPDATED knowledge automatically replaces the matched old knowledge.
+- UNCHANGED knowledge is automatically retained.
+- Complex or uncertain relations keep the safe default of adding new knowledge while keeping old knowledge unless the user explicitly chooses replacement.
+- Single Review is restricted to exactly one Old item plus one New item with a known relation that cannot be safely auto-replaced.
+- Dynamic knowledge such as price, finance, benefits, promotions, and marketing policies is auto-updated when Diff determines a safe 1:1 update.
+
+### Fixed
+
+- Fixed Streamlit session state and rerun stability across Generate and Update.
+- Fixed Generate internal navigation so section filters no longer cause multiple panels to render.
+- Fixed raw HTML leakage on the Home page.
+- Fixed lifecycle QC false positives where limited-time benefits involving warranty, service, traffic, and intelligent-driving content were incorrectly treated as static.
+- Fixed Single Review cases where only New knowledge existed without an Old candidate.
+- Fixed exact duplicate knowledge entering final production Excel.
+- Fixed oversized Facts chunk splitting for experimental chunked Facts mode.
+
+### Performance
+
+- Production default keeps `FACTS_MODE=single`, `RAG_MAX_CONCURRENCY=2`, and `QC_MODE=full`.
+- TASK7 RAG benchmark:
+  - `RAG_MAX_CONCURRENCY=1`: 426.05s
+  - `RAG_MAX_CONCURRENCY=2`: 177.89s
+  - Wall-time reduction: 58.25%
+  - Speedup: about 2.40x
+  - Requests: 4 -> 4
+- TASK10 final Generate validation:
+  - Old baseline: about 807.78s
+  - V0.8 final: 465.41s
+  - Total wall-time reduction: 42.38%
+
+### Validation
+
+- Generate E2E release validation:
+  - Parser: 0.81s
+  - Facts: 230.85s
+  - RAG: 122.25s
+  - QC: 111.32s
+  - Excel: 0.16s
+  - Facts: 49
+  - RAG: 68
+  - Exportable: 68
+- Update E2E release validation:
+  - Old Knowledge: 1136
+  - New Knowledge: 68
+  - ADDED: 39
+  - UPDATED: 10
+  - UNCHANGED: 1126
+  - REVIEW_REQUIRED: 19
+  - Complex Groups: 7
+  - Single Reviews: 0
+  - Final Clean Knowledge: 1193
+  - Exportable Knowledge: 1193
+- Facts Coverage Release Gate:
+  - Result: PASS WITH MINOR BACKLOG
+  - Same 12081-character input, `FACTS_MODE=single`, `deepseek-v4-flash`, temperature 0.2
+  - TASK9 Single: 102 Facts
+  - TASK10: 49 Facts
+  - Canonical model coverage: 11/11
+  - Price coverage: 6/6
+  - Finance coverage: 13/13
+  - Source numeric signal missing: 0
+  - Main difference: MERGED / SPLIT_DIFFERENTLY, not a release blocker.
+
+### Experimental
+
+- `FACTS_MODE=chunked` remains experimental and is not the production default. It showed about 27% wall-time improvement in one benchmark, but Fact granularity and scope stability are not yet sufficient for default rollout.
+- `QC_MODE=rule_first` remains experimental and is not the production default. On the saved marketing-policy sample, 78/82 knowledge items were still routed to LLM QC, so the current performance value is limited.
+- Targeted Semantic Judge is not included in V0.8.0.
+- Cloud deployment is not part of this release task.
+
+## V0.8.0-rc1 - Update Closed Loop and Performance Baseline
+
+Date: 2026-08-12
+
+Status: Release Candidate
+
+### Added
+
+- Added complete Update mode workflow: Historical Knowledge + New Documents -> Restore -> Unified Knowledge -> Diff -> Complex Relation Grouping -> Exception Review -> Merge -> Exact Duplicate Cleanup -> Export Quality Gate -> Dual Excel Export.
+- Added historical knowledge restore for standard Excel and Word files.
+- Added deterministic system-standard Word restore for:
+  - Schema A: `车系 / 问题 / 答案`
+  - Schema B: `意图名称1 / 意图描述1 / 参考内容1`
+- Added automatic restore format detection so users do not choose Fast or Deep restore modes.
+- Added IMAGE_DOMINANT_WORD support: embedded Word images are extracted, parsed through the existing Vision capability, then sent through the normal Facts/RAG flow.
+- Added Diff V0.2 with intent normalization, model normalization, candidate recall, numeric normalization, GENERAL/DETAIL relation handling, and safer model matching.
+- Added Complex Relation Grouping for `GENERAL_TO_DETAIL`, `DETAIL_TO_GENERAL`, `ONE_TO_MANY`, `MANY_TO_ONE`, and `AMBIGUOUS_RELATION`.
+- Added Exception Review and deterministic Merge for Update mode.
+- Added exact duplicate cleanup before Update export.
+- Added controlled RAG batch concurrency with `RAG_MAX_CONCURRENCY=2`.
+- Added experimental Rule First QC framework with `QC_MODE=full` and `QC_MODE=rule_first`.
+
+### Changed
+
+- Simplified Update UX into: upload materials -> processing result -> scope summary -> change summary -> exception handling when needed -> generate new knowledge base -> download Excel.
+- ADDED knowledge is automatically accepted into the new knowledge base.
+- UPDATED knowledge automatically replaces the matched old knowledge.
+- UNCHANGED knowledge is retained.
+- Complex or uncertain relations enter Exception Review; default handling adds new knowledge while keeping old knowledge.
+- Dynamic lifecycle handling now distinguishes knowledge lifecycle from content topic.
+- Diff detail tables and technical fields are hidden from the default user flow.
+
+### Fixed
+
+- Fixed Streamlit session state and rerun issues in Generate and Update.
+- Fixed Generate internal section navigation so only the active section renders.
+- Fixed raw HTML leakage on the Home page.
+- Fixed lifecycle QC false positives for limited-time benefits involving warranty, service, traffic, and intelligent-driving content.
+- Fixed Single Review cases where only New knowledge existed without an Old candidate.
+- Fixed exact duplicate knowledge entering final production Excel.
+
+### Performance
+
+- RAG benchmark on saved 101 Facts / 4 batches:
+  - `RAG_MAX_CONCURRENCY=1`: 426.05s
+  - `RAG_MAX_CONCURRENCY=2`: 177.89s
+  - Wall-time reduction: 58.25%
+  - Speedup: about 2.40x
+  - Requests: 4 -> 4
+  - Fact coverage: 101/101 -> 101/101
+  - Missing Facts: 0 -> 0
+  - High-value dynamic missing: 0 -> 0
+
+### Notes
+
+- `RAG_MAX_CONCURRENCY=2` is the RC1 default, with `1` retained as a rollback setting.
+- `QC_MODE=full` remains the RC1 production default.
+- `QC_MODE=rule_first` is experimental. Current offline routing on a marketing-policy sample routed 78/82 knowledge items to LLM QC, so performance value is limited for that scenario.
+- Generate business logic, prompts, Excel schema, and export quality gate remain unchanged.
+
+## V0.8.0-dev - Rule-based Knowledge Change Detection
+
+Date: 2026-07-29
+
+Status: In development
+
+### Added
+
+- Added rule-based Diff data models, including `ChangeType`, `MatchMethod`, `ReviewReason`, `MatchResult`, `DiffResult`, and `DiffRunResult`.
+- Added Knowledge normalizer for question, answer, number, topic, and signature normalization.
+- Added automatic update scope detection from new `KnowledgeItem[]`.
+- Added candidate builder with normalized-question, model, category, knowledge-type, and signature indexes.
+- Added conservative rule matcher with normalized-question and structured matching.
+- Added change detector for unchanged answers, price or number changes, answer changes, and possible deprecation evidence.
+- Added unified Diff Engine entrypoint: `compare(old_items, new_items)`.
+- Added Update page generation of new knowledge through the existing Parser -> Fact Agent -> RAG Agent -> Knowledge Adapter chain.
+- Added Update page Diff statistics and result tabs for all, added, updated, unchanged, and review-required items.
+- Added Diff unit tests for normalizer, scope detector, candidate builder, matcher, change detector, and engine scenarios.
+
+### Notes
+
+- First-level page statuses are limited to added, updated, unchanged, and review required.
+- Possible deprecation is a review reason, not an automatic deletion state.
+- Old knowledge is kept by default. New material not mentioning old knowledge does not mark it invalid.
+- LLM Semantic Judge, Review actions, Merge, and Update Excel Export remain out of scope.
+- Generate business logic remains frozen.
+
+## V0.8.0-dev - Knowledge Restore and Parser Foundation
+
+Date: 2026-07-26
+
+Status: Completed
+
+### Added
+
+- Added `knowledge.adapter` to convert RAG JSON and restored Excel rows into `KnowledgeItem` objects.
+- Added `knowledge.excel_restore` for restoring standard AutoRAG Excel exports into unified knowledge objects.
+- Added `knowledge.word_restore` for restoring Word knowledge material through the existing Parser -> Fact Agent -> RAG Agent chain.
+- Added `knowledge.restore_manager` as the Update mode restore entrypoint.
+- Added Update page restore statistics and a restored knowledge preview table.
+- Added restore unit tests covering Excel restore, Word restore via existing Agent interfaces, and restore manager mixed results.
+
+### Changed
+
+- Expanded `KnowledgeItem` with `normalized_question` and internal `knowledge_type` for future Diff inputs.
+- Update mode now restores history knowledge files before the future Diff step.
+
+### Notes
+
+- Diff Engine, Review, Merge, and Update Export are still out of scope.
+- Generate business logic remains frozen.
+- No changes were made to prompts, parser behavior, Agent logic, Excel export logic, or export quality gate logic.
+
+## V0.8.0-dev - Architecture and UI Foundation
+
+Date: 2026-07-26
+
+Status: Completed
+
+### Added
+
+- Added a dual-mode home page for Generate and Update workflows.
+- Added `pages/` modules for home, Generate, and Update page rendering.
+- Added shared `ui/` styles and components for headers, steps, feature cards, metrics, file cards, and footer.
+- Added V0.8 placeholder packages for `knowledge/`, `diff/`, `review/`, `merge/`, and `exporter/`.
+- Added an initial `KnowledgeItem` dataclass as the future unified knowledge object foundation.
+- Added an Update page skeleton with history material upload, new material upload, Diff preview, and Review preview placeholders.
+
+### Changed
+
+- Refactored `app.py` into a lightweight Streamlit entrypoint for page setup, global styling, navigation, and routing.
+- Wrapped the existing Generate UI in `pages/generate_page.py` while preserving the existing Generate pipeline calls.
+- Lightly improved Generate page readability with a page header, step navigation, and uploaded file cards.
+- Disabled Streamlit's automatic sidebar page navigation so the app-level navigation remains the single source of truth.
+
+### Notes
+
+- Generate business logic remains frozen.
+- No changes were made to prompts, Agent rules, parser behavior, Excel fields, Excel naming, static/dynamic splitting, or export quality gate logic.
+- Update mode is a UI and architecture foundation only. Knowledge Parser, Diff, Review, Merge, and Update Export are not implemented in this milestone.
+
+## V0.7.3 - Cloud Ready
+
+Date: 2026-07-23
+
+Status: Completed
+
+### Added
+
+- Added Streamlit Community Cloud deployment documentation in `DEPLOY.md`.
+- Added project quick-start documentation in `README.md`.
+- Added `PROJECT_CLEANUP_REPORT.md` for project cleanup classification.
+- Added `runtime.txt` with `python-3.11`.
+- Added `.streamlit/config.toml` with upload size configuration.
+- Added `.streamlit/secrets.toml.example` for cloud Secrets setup.
+- Added unified configuration helper for Streamlit Secrets, environment variables, and local `.env`.
+
+### Changed
+
+- DeepSeek and Qwen configuration now read in this order:
+  1. Streamlit Secrets
+  2. System environment variables
+  3. Local `.env`
+- `requirements.txt` now uses conservative production version ranges.
+- `.gitignore` now explicitly excludes local Streamlit secrets, Python bytecode, pytest cache, logs, temp files, and backup files.
+
+### Fixed
+
+- Avoids Streamlit startup failure when Secrets are not yet configured by creating the DeepSeek client lazily during model calls.
+- Keeps Qwen Vision image parsing compatible with Streamlit Cloud Secrets.
+
+### Cleanup
+
+- Removed local Python cache directories only.
+- Kept historical `output/` runs local and ignored for regression reference.
+
+### Notes
+
+- Generate business behavior remains based on V0.7.2 Stable.
+- No changes were made to prompt rules, static/dynamic classification, Excel fields, Excel naming, or export quality gate logic.
+- Streamlit Cloud code adaptation is complete, but actual cloud deployment must be performed from the user's Streamlit account.
+
 ## V0.7.2 - Generate Stable Quality Gate
 
 Date: 2026-07-18

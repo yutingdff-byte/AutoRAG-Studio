@@ -1,21 +1,11 @@
 import base64
 import mimetypes
-import os
 from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
-
-try:
-
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
-except ModuleNotFoundError:
-
-    pass
+from utils.config import get_config, require_config
 
 
 IMAGE_EXTENSIONS = {
@@ -49,7 +39,7 @@ IMAGE_PARSE_PROMPT = """
 
 def get_vision_model_name():
 
-    return os.getenv(
+    return get_config(
         "VISION_MODEL",
         "qwen-vl-plus"
     )
@@ -174,19 +164,15 @@ def _validate_image_bytes(image_bytes, source_name):
 
 def _validate_qwen_config():
 
-    api_key = os.getenv(
-        "QWEN_API_KEY"
+    api_key = require_config(
+        "QWEN_API_KEY",
+        "图片解析服务"
     )
 
-    base_url = os.getenv(
-        "QWEN_BASE_URL"
+    base_url = require_config(
+        "QWEN_BASE_URL",
+        "图片解析服务"
     )
-
-    if not api_key or not base_url:
-
-        raise RuntimeError(
-            "图片解析服务未配置，请在 .env 中补充 Qwen Vision API 配置。"
-        )
 
     return api_key, base_url
 

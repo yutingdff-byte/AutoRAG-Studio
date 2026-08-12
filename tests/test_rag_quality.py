@@ -13,11 +13,12 @@ fake_llm_client = types.ModuleType(
     "agents.llm_client"
 )
 fake_llm_client.call_llm = lambda *args, **kwargs: ""
+fake_llm_client.get_llm_timeout = lambda: None
 sys.modules[
     "agents.llm_client"
 ] = fake_llm_client
 
-from agents.qc_agent import should_report_static_dynamic_mismatch  # noqa: E402
+from agents.qc_agent import rule_based_quality_checks, should_report_static_dynamic_mismatch  # noqa: E402
 
 
 def test_missing_rag_is_blocked_when_effective_topic_exists():
@@ -206,6 +207,114 @@ def test_limited_time_benefit_still_triggers_dynamic_mismatch():
     assert should_report_static_dynamic_mismatch(
         item
     )
+
+
+def test_lifecycle_dynamic_policy_overrides_service_topic():
+
+    cases = [
+        "2026年6月下订赠送娱乐流量3年。",
+        "6月锁单赠送终身保修权益。",
+        "限时赠送智能驾驶辅助系统服务。",
+        "6月下定可享免费保养权益。",
+    ]
+
+    for answer in cases:
+
+        item = {
+            "rag_id": "RAG-DYNAMIC",
+            "knowledge_type": "static",
+            "category": "权益政策",
+            "module": "购车权益",
+            "answer_type": "fact_answer",
+            "questions": [
+                "本月购车权益有哪些？"
+            ],
+            "answer": answer,
+            "source_file": "关于2026年6月魏牌营销政策.docx",
+            "fact_refs": [
+                "F001"
+            ]
+        }
+
+        assert should_report_static_dynamic_mismatch(
+            item
+        )
+
+
+def test_lifecycle_static_long_term_services_remain_static():
+
+    cases = [
+        "官方长期标准质保为整车质保5年或15万公里。",
+        "长期基础服务包含车联网基础流量。",
+        "车型标准智驾配置包含车道居中辅助。",
+        "长期标准保养政策以官方保养手册为准。",
+    ]
+
+    for answer in cases:
+
+        item = {
+            "rag_id": "RAG-STATIC",
+            "knowledge_type": "static",
+            "category": "售后基础保障",
+            "module": "基础服务",
+            "answer_type": "fact_answer",
+            "questions": [
+                "基础保障怎么样？"
+            ],
+            "answer": answer,
+            "source_file": "车型配置资料.docx",
+            "fact_refs": [
+                "F002"
+            ]
+        }
+
+        assert not should_report_static_dynamic_mismatch(
+            item
+        )
+
+
+def test_qc_lifecycle_false_positive_is_rechecked_by_rules():
+
+    rag_data = {
+        "rag_knowledge": [
+            {
+                "rag_id": "RAG-DYN-OK",
+                "knowledge_type": "dynamic",
+                "category": "权益政策",
+                "module": "购车权益",
+                "answer_type": "fact_answer",
+                "questions": [
+                    "本月有什么权益？"
+                ],
+                "answer": "2026年6月下订赠送娱乐流量3年。",
+                "source_file": "关于2026年6月魏牌营销政策.docx",
+                "fact_refs": [
+                    "F003"
+                ]
+            }
+        ]
+    }
+
+    qc_data = {
+        "overall_result": "需优化",
+        "summary": {},
+        "issues": [
+            {
+                "rag_id": "RAG-DYN-OK",
+                "issue_type": "静态动态分类可能错误",
+                "risk_level": "warning",
+                "description": "误判动态权益应为静态。",
+                "suggestion": "改为车型配置知识。",
+            }
+        ],
+    }
+
+    checked = rule_based_quality_checks(
+        rag_data,
+        qc_data
+    )
+
+    assert checked["issues"] == []
 
 
 def test_tts_and_model_normalization():

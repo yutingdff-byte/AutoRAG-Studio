@@ -1,59 +1,93 @@
 # AutoRAG-Studio Current Task
 
-Version: V0.7.2
+Version: V0.8.0
 
 Status: Completed
 
-Milestone: V0.7.2 Stable
+Last Update: 2026-08-12
 
-## Completed In V0.6
+## Current Stable Release
 
-- TASK-001: Run ID and isolated output directory
-- TASK-002: Engineering hygiene fixes
-- V0.6.1: Static/dynamic knowledge classification and dual Excel export
-- V0.6.2: Brand/model/trim vehicle hierarchy
-- V0.6.3: Model-level knowledge aggregation and version-difference generation
-- V0.6.4: Streamlit review console and productized Excel naming
-- V0.6.5: Knowledge review center and price overview optimization
-- V0.6.6: Review console polish, price knowledge optimization, and QC static/dynamic false-positive fix
+```text
+v0.8.0
+```
 
-## Current Stable State
+The V0.8 final release preserves:
 
-V0.7.2 is the current stable Generate baseline.
+- Generate stable production chain
+- Update closed loop
+- Historical Restore
+- Diff V0.2
+- Complex Relation Grouping
+- Exception Review
+- Merge
+- Exact Duplicate Cleanup
+- Dual Excel Export
+- RAG concurrency performance baseline
+- Experimental Rule First QC framework
+- Experimental chunked Facts framework
+- TASK10 End-to-End Release Validation
+- TASK10.1 Facts Coverage Release Gate
 
-The system can:
+## Current Production Defaults
 
-- Parse common automotive material files
-- Extract facts
-- Generate AI outbound-call RAG knowledge
-- Split static vehicle configuration knowledge and dynamic price policy knowledge
-- Export two productized Excel files
-- Display generated results in the review console
-- Surface information gaps, conflicts, AI inference, dynamic reminders, and QC suggestions
-- Block missing, unconfirmed, invalid, and contradictory no-information RAG from formal Excel export
-- Keep blocked knowledge visible in the Knowledge Review Center
-- Normalize common TTS-sensitive prices, units, percentages, and driving-assistance abbreviations
+```text
+FACTS_MODE=single
+RAG_MAX_CONCURRENCY=2
+QC_MODE=full
+```
 
-## Current Task
+`FACTS_MODE=chunked` and `QC_MODE=rule_first` exist only as experimental capabilities in V0.8.0.
 
-V0.7.2: RC bugfix and Generate quality gate stabilization.
+## Completed V0.8 Work
 
-Completed:
+- Architecture and UI foundation
+- Update historical knowledge restore
+- System-standard Word restore
+- Image-dominant Word parsing for new source materials
+- New material generation in Update through existing Parser -> Facts -> RAG
+- Diff V0.2 rule matching
+- Complex relation grouping
+- Exception Review
+- Deterministic Merge
+- Exact Duplicate Cleanup
+- Update dual Excel export
+- Streamlit session state stability
+- Update UX simplification
+- RAG batch concurrency performance optimization
+- QC Rule First experiment framework
+- Facts chunking and controlled concurrency experiment framework
+- Oversized Facts chunk safe splitting
+- End-to-end release validation
+- Facts coverage release gate
 
-- Missing and need-confirm RAG items are excluded from formal Excel export.
-- Contradictory missing-answer RAG is blocked when valid same-model same-topic knowledge exists.
-- Excel export repeats the export quality gate as a safeguard.
-- Fixed static/dynamic QC false positives for fixed benefits such as warranty, roadside assistance, fixed traffic packages, and standard driving-assistance capability.
-- Knowledge Review Center normalizes string and object review data into model, item, reason, and suggestion fields.
-- Added TTS cleanup for RMB prices, percentages, traffic package wording, voltage, and common driving-assistance abbreviations.
-- Added `model_normalized` for future V0.8 matching while preserving Excel display names.
+## Release Validation
 
-## Next Task
+```text
+TASK10:
+RELEASE READY WITH MINOR BACKLOG
 
-Start V0.8 knowledge update mode design.
+TASK10.1:
+PASS WITH MINOR BACKLOG
+```
 
-## Future Tasks
+Known minor backlog:
 
-1. Old knowledge base plus new policy material automatic update.
-2. Image material parsing enhancement.
-3. QC-assisted fixing with user accept/ignore choices.
+- Facts non-determinism and granularity stability
+- Chunked Facts quality improvement before production rollout
+- Rule First QC routing optimization
+- Targeted Semantic Judge only if future badcases require it
+- Cloud Deployment
+- UI detail polish
+
+## Next
+
+```text
+V0.8 Cloud Deployment / Post-release Planning
+```
+
+Wait for user decision before starting the next task.
+
+## Do Not Start Automatically
+
+Do not begin V0.8.1, V0.9, Cloud Deployment, or new feature development without explicit user instruction.
