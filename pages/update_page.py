@@ -17,6 +17,7 @@ from diff.engine import compare
 from diff.models import ChangeType, DiffResult, DiffRunResult, DetectedUpdateScope
 from diff.reasons import change_type_label, review_reason_label
 from generator.excel_generator import generate_excel
+from knowledge.deduplicator import DuplicateCleanupResult, cleanup_exact_duplicates
 from merge.engine import MergeResult, merge_knowledge
 from review.decisions import build_default_decisions, decision_from_label
 from review.models import ReviewDecision, ReviewDecisionType
@@ -46,6 +47,7 @@ def _reset_update_review_state() -> None:
     st.session_state.update_relation_decisions = {}
     st.session_state.update_review_completed = False
     st.session_state.update_merge_result = None
+    st.session_state.update_dedup_result = None
     st.session_state.update_export_files = {}
 
 
@@ -1017,13 +1019,15 @@ def _render_review_center(result: DiffRunResult) -> None:
         st.session_state.update_review_decisions = final_decisions
         merge_result = merge_knowledge(result, final_decisions)
         st.session_state.update_merge_result = merge_result
+        dedup_result = cleanup_exact_duplicates(merge_result.final_items)
+        st.session_state.update_dedup_result = dedup_result
         st.session_state.update_review_completed = True
         st.session_state.update_stage = "merged"
-        if not merge_result.final_items:
+        if not dedup_result.final_items:
             st.session_state.update_export_files = {}
             st.error("最终知识为空，已停止导出。")
         else:
-            st.session_state.update_export_files = _build_update_export_files(merge_result.final_items)
+            st.session_state.update_export_files = _build_update_export_files(dedup_result.final_items)
 
 
 def _knowledge_items_to_rag_data(items: list[KnowledgeItem]) -> dict:
@@ -1089,6 +1093,10 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
     if merge_result is None:
         return
 
+    dedup_result = st.session_state.get("update_dedup_result")
+    if not isinstance(dedup_result, DuplicateCleanupResult):
+        dedup_result = DuplicateCleanupResult(final_items=merge_result.final_items)
+
     diff_result = st.session_state.get("update_diff_result")
     grouping = st.session_state.get("update_relation_grouping")
     auto_added_count = 0
@@ -1098,7 +1106,7 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
         complex_group_count = len(grouping.groups)
 
     render_section_title("新版知识库生成完成")
-    final_count = len(merge_result.final_items)
+    final_count = len(dedup_result.final_items)
     st.success("新版知识库已生成完成，可以下载 Excel。")
     render_metric_cards(
         [
@@ -1107,11 +1115,21 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
             ("自动更新", merge_result.updated_accepted, "已自动替换为新答案的知识"),
             ("保留旧知识", merge_result.kept_old, "未变化或选择保留的历史知识"),
             ("复杂变化处理", complex_group_count, "已按当前选择处理的复杂变化组"),
+            ("重复清理", dedup_result.removed_count, "已自动清理的完全重复知识"),
             ("删除", merge_result.removed, "已二次确认删除的知识"),
         ]
     )
 
-    if merge_result.duplicate_warnings:
+    if dedup_result.removed_count:
+        st.caption(f"已自动清理完全重复知识：{dedup_result.removed_count} 条。")
+
+    removed_ids = {item.knowledge_id for item in dedup_result.removed_items}
+    visible_duplicate_warnings = [
+        warning
+        for warning in merge_result.duplicate_warnings
+        if not (warning.warning_type == "duplicate_exact" and removed_ids.intersection(warning.knowledge_ids))
+    ]
+    if visible_duplicate_warnings:
         with st.expander("重复知识提示", expanded=False):
             st.dataframe(
                 [
@@ -1120,7 +1138,7 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
                         "知识ID": "、".join(warning.knowledge_ids),
                         "说明": warning.message,
                     }
-                    for warning in merge_result.duplicate_warnings
+                    for warning in visible_duplicate_warnings
                 ],
                 use_container_width=True,
                 hide_index=True,
@@ -1307,6 +1325,7 @@ def render_update_page() -> None:
         st.session_state.update_diff_result = compare(old_items, new_items)
         _ensure_review_decisions(st.session_state.update_diff_result)
         st.session_state.update_merge_result = None
+        st.session_state.update_dedup_result = None
         st.session_state.update_export_files = {}
         st.session_state.update_stage = "diff_completed"
 
@@ -1315,8 +1334,10 @@ def render_update_page() -> None:
         if st.button("直接生成新版知识库", use_container_width=True):
             merge_result = MergeResult(final_items=list(old_items), kept_old=len(old_items))
             st.session_state.update_merge_result = merge_result
+            dedup_result = cleanup_exact_duplicates(merge_result.final_items)
+            st.session_state.update_dedup_result = dedup_result
             st.session_state.update_review_completed = True
-            st.session_state.update_export_files = _build_update_export_files(merge_result.final_items)
+            st.session_state.update_export_files = _build_update_export_files(dedup_result.final_items)
             st.session_state.update_stage = "merged"
     elif not can_diff:
         st.caption("恢复历史知识并生成新增知识后，可以开始差异分析。")
