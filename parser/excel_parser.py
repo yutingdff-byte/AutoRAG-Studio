@@ -17,6 +17,36 @@ SUPPORTED_EXTENSIONS = {
     ".xltm",
 }
 
+ROW_ORIENTED_TABLE = "ROW_ORIENTED_TABLE"
+COLUMN_ORIENTED_VEHICLE_MATRIX = "COLUMN_ORIENTED_VEHICLE_MATRIX"
+UNKNOWN_EXCEL_ORIENTATION = "UNKNOWN"
+
+MATRIX_IDENTITY_FIELDS = {
+    "品牌",
+    "车系名称",
+    "车型名称",
+    "配置版本等级",
+    "厂商指导价",
+}
+
+MATRIX_ATTRIBUTE_SIGNALS = MATRIX_IDENTITY_FIELDS | {
+    "车型",
+    "一句话介绍",
+    "车型价格区间",
+    "细分品牌分类",
+    "车辆级别",
+    "能源类型",
+    "购车补贴政策",
+    "厂家置换补贴",
+    "金融优惠",
+    "其他权益",
+    "其他活动",
+}
+
+MIN_MATRIX_IDENTITY_ROWS = 3
+MIN_MATRIX_VEHICLE_COLUMNS = 2
+MIN_MATRIX_DATA_VALUES_PER_COLUMN = 3
+
 
 def _clean_text(value: Any) -> str:
     """
@@ -195,6 +225,137 @@ def _count_non_empty(row: list[str]) -> int:
         for value in row
         if value
     )
+
+
+def _normalize_field_name(value: str) -> str:
+    return (
+        value
+        .replace(" ", "")
+        .replace("\n", "")
+        .replace("\t", "")
+        .strip()
+    )
+
+
+def _row_value(row: list[str], index: int) -> str:
+    if index < len(row):
+        return row[index]
+
+    return ""
+
+
+def _first_column_fields(rows: list[list[str]]) -> list[str]:
+    return [
+        _normalize_field_name(row[0])
+        for row in rows
+        if row and row[0]
+    ]
+
+
+def _identity_row_indexes(rows: list[list[str]]) -> dict[str, int]:
+    indexes: dict[str, int] = {}
+
+    for index, row in enumerate(rows):
+        if not row:
+            continue
+
+        field_name = _normalize_field_name(row[0])
+
+        if field_name in MATRIX_IDENTITY_FIELDS:
+            indexes[field_name] = index
+
+    return indexes
+
+
+def _effective_column_count(rows: list[list[str]]) -> int:
+    count = 0
+
+    for row in rows:
+        for index, value in enumerate(row):
+            if value:
+                count = max(count, index + 1)
+
+    return count
+
+
+def _matrix_vehicle_columns(
+    rows: list[list[str]],
+    identity_rows: dict[str, int],
+) -> list[int]:
+    """
+    找出真正包含车型/版本数据的列。
+
+    返回值是0-based列索引。第0列是属性名列，不会返回。
+    """
+
+    max_columns = _effective_column_count(rows)
+    vehicle_columns: list[int] = []
+
+    for column_index in range(1, max_columns):
+        identity_values = [
+            _row_value(rows[row_index], column_index)
+            for row_index in identity_rows.values()
+            if row_index < len(rows)
+        ]
+
+        identity_non_empty = _count_non_empty(identity_values)
+
+        if identity_non_empty < 2:
+            continue
+
+        data_non_empty = 0
+
+        for row in rows:
+            if _row_value(row, column_index):
+                data_non_empty += 1
+
+        if data_non_empty < MIN_MATRIX_DATA_VALUES_PER_COLUMN:
+            continue
+
+        vehicle_columns.append(column_index)
+
+    return vehicle_columns
+
+
+def _detect_excel_orientation(rows: list[list[str]]) -> str:
+    """
+    识别Excel表格方向。
+
+    ROW_ORIENTED_TABLE保留原有行记录表逻辑；
+    COLUMN_ORIENTED_VEHICLE_MATRIX表示A列是属性、B之后每列是车型版本。
+    """
+
+    if not rows:
+        return UNKNOWN_EXCEL_ORIENTATION
+
+    first_column = _first_column_fields(rows)
+
+    if len(first_column) < 5:
+        return ROW_ORIENTED_TABLE
+
+    signal_hits = sum(
+        1
+        for field_name in first_column
+        if field_name in MATRIX_ATTRIBUTE_SIGNALS
+    )
+
+    identity_rows = _identity_row_indexes(rows)
+
+    vehicle_columns = _matrix_vehicle_columns(
+        rows,
+        identity_rows,
+    )
+
+    first_column_signal_ratio = signal_hits / len(first_column)
+
+    if (
+        len(identity_rows) >= MIN_MATRIX_IDENTITY_ROWS
+        and len(vehicle_columns) >= MIN_MATRIX_VEHICLE_COLUMNS
+        and first_column_signal_ratio >= 0.25
+    ):
+        return COLUMN_ORIENTED_VEHICLE_MATRIX
+
+    return ROW_ORIENTED_TABLE
 
 
 def _looks_like_title_row(row: list[str]) -> bool:
@@ -479,6 +640,80 @@ def _format_structured_sheet(
     return output
 
 
+def _format_column_oriented_vehicle_matrix(
+    rows: list[list[str]],
+) -> list[str]:
+    """
+    将横向车型矩阵确定性转置为一列一个车型版本记录。
+
+    原始结构：
+        A列 = 属性名
+        B之后 = 车型/版本
+
+    输出结构：
+        【车型记录1】
+        字段: 值
+    """
+
+    output: list[str] = [
+        "【表格结构：横向车型矩阵】"
+    ]
+
+    identity_rows = _identity_row_indexes(rows)
+    vehicle_columns = _matrix_vehicle_columns(
+        rows,
+        identity_rows,
+    )
+
+    record_number = 0
+
+    for column_index in vehicle_columns:
+        fields: list[str] = []
+        seen_fields: dict[str, int] = {}
+
+        for row in rows:
+            if not row:
+                continue
+
+            raw_field_name = _row_value(
+                row,
+                0,
+            )
+            value = _row_value(
+                row,
+                column_index,
+            )
+
+            if not raw_field_name or not value:
+                continue
+
+            field_name = raw_field_name.strip()
+            count = seen_fields.get(
+                field_name,
+                0,
+            ) + 1
+            seen_fields[field_name] = count
+
+            if count > 1:
+                field_name = f"{field_name}_{count}"
+
+            fields.append(
+                f"{field_name}: {value}"
+            )
+
+        if not fields:
+            continue
+
+        record_number += 1
+        output.append("")
+        output.append(
+            f"【车型记录{record_number}】"
+        )
+        output.extend(fields)
+
+    return output
+
+
 def _format_unstructured_sheet(
     rows: list[list[str]],
 ) -> list[str]:
@@ -574,19 +809,28 @@ def parse_excel(
             f"【Sheet:{ws.title}】"
         )
 
-        header_index = _detect_header_index(
+        orientation = _detect_excel_orientation(
             rows
         )
 
-        if header_index is not None:
-            sheet_text = _format_structured_sheet(
-                rows,
-                header_index,
-            )
-        else:
-            sheet_text = _format_unstructured_sheet(
+        if orientation == COLUMN_ORIENTED_VEHICLE_MATRIX:
+            sheet_text = _format_column_oriented_vehicle_matrix(
                 rows
             )
+        else:
+            header_index = _detect_header_index(
+                rows
+            )
+
+            if header_index is not None:
+                sheet_text = _format_structured_sheet(
+                    rows,
+                    header_index,
+                )
+            else:
+                sheet_text = _format_unstructured_sheet(
+                    rows
+                )
 
         output.extend(sheet_text)
 
