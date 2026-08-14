@@ -1405,7 +1405,9 @@ def generate_batch(
 
     if not result:
 
-        return None
+        return {
+            "__empty_response__": True
+        }
 
 
 
@@ -1422,6 +1424,8 @@ class RagBatchResult:
     error: str = ""
     elapsed: float = 0.0
     fact_count: int = 0
+    attempts: int = 1
+    retry_count: int = 0
 
 
 class RagBatchExecutionError(RuntimeError):
@@ -1445,8 +1449,62 @@ def get_rag_max_concurrency():
     )
 
 
-def _run_single_batch(batch_index, batch, total_batches, system_prompt, fact_index):
+def get_rag_batch_retry():
+    try:
+        value = int(
+            get_config(
+                "RAG_BATCH_RETRY",
+                "1"
+            )
+        )
+    except (TypeError, ValueError):
+        value = 1
+
+    return max(
+        0,
+        value
+    )
+
+
+def _is_empty_rag_response(result):
+    if not result:
+        return False
+
+    if result.get(
+        "__empty_response__"
+    ):
+        return True
+
+    if (
+        isinstance(
+            result,
+            dict
+        )
+        and "rag_knowledge" in result
+        and len(
+            result.get(
+                "rag_knowledge",
+                []
+            )
+        ) == 0
+    ):
+        return True
+
+    return False
+
+
+def _run_single_batch(batch_index, batch, total_batches, system_prompt, fact_index, max_retries=None):
     started = perf_counter()
+    retry_limit = (
+        get_rag_batch_retry()
+        if max_retries is None
+        else max(
+            0,
+            int(
+                max_retries
+            )
+        )
+    )
 
     try:
         print(
@@ -1457,12 +1515,52 @@ def _run_single_batch(batch_index, batch, total_batches, system_prompt, fact_ind
             len(batch)
         )
 
-        result = generate_batch(
-            batch,
-            system_prompt
-        )
+        attempts = 0
+        retry_count = 0
+        result = None
+
+        while attempts <= retry_limit:
+            attempts += 1
+            print(
+                f"batch_{batch_index + 1}_attempt_{attempts}: start"
+            )
+
+            result = generate_batch(
+                batch,
+                system_prompt
+            )
+
+            if _is_empty_rag_response(
+                result
+            ):
+                print(
+                    f"batch_{batch_index + 1}_attempt_{attempts}: empty_response"
+                )
+                if attempts <= retry_limit:
+                    retry_count += 1
+                    print(
+                        f"batch_{batch_index + 1}_retry_attempt_{attempts + 1}: scheduled"
+                    )
+                    continue
+                break
+
+            break
 
         elapsed = perf_counter() - started
+
+        if _is_empty_rag_response(
+            result
+        ):
+            return RagBatchResult(
+                batch_index=batch_index,
+                success=False,
+                result=None,
+                error="Batch未返回有效结果",
+                elapsed=elapsed,
+                fact_count=len(batch),
+                attempts=attempts,
+                retry_count=retry_count,
+            )
 
         if not result:
             return RagBatchResult(
@@ -1472,6 +1570,8 @@ def _run_single_batch(batch_index, batch, total_batches, system_prompt, fact_ind
                 error="Batch未返回有效结果",
                 elapsed=elapsed,
                 fact_count=len(batch),
+                attempts=attempts,
+                retry_count=retry_count,
             )
 
         normalized = normalize_rag_metadata(
@@ -1485,6 +1585,8 @@ def _run_single_batch(batch_index, batch, total_batches, system_prompt, fact_ind
             result=normalized,
             elapsed=elapsed,
             fact_count=len(batch),
+            attempts=attempts,
+            retry_count=retry_count,
         )
 
     except Exception as exc:
@@ -1581,7 +1683,7 @@ def execute_rag_batches(batches, system_prompt, fact_index, max_concurrency=None
             else 0
         )
         print(
-            f"batch_{item.batch_index + 1}: {status}, facts={item.fact_count}, generated={generated}, elapsed={item.elapsed:.2f}s"
+            f"batch_{item.batch_index + 1}: {status}, facts={item.fact_count}, generated={generated}, attempts={item.attempts}, retries={item.retry_count}, elapsed={item.elapsed:.2f}s"
         )
         if item.error:
             print(

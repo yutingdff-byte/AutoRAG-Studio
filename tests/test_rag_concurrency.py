@@ -4,7 +4,13 @@ import time
 import pytest
 
 from agents import rag_agent
-from agents.rag_agent import RagBatchExecutionError, execute_rag_batches, generate_rag, get_rag_max_concurrency
+from agents.rag_agent import (
+    RagBatchExecutionError,
+    execute_rag_batches,
+    generate_rag,
+    get_rag_batch_retry,
+    get_rag_max_concurrency,
+)
 
 
 def fact(fact_id: str) -> dict:
@@ -54,6 +60,14 @@ def test_rag_concurrency_config_accepts_one_and_two(monkeypatch):
 
     monkeypatch.setenv("RAG_MAX_CONCURRENCY", "2")
     assert get_rag_max_concurrency() == 2
+
+
+def test_rag_batch_retry_config_defaults_to_one(monkeypatch):
+    monkeypatch.delenv("RAG_BATCH_RETRY", raising=False)
+    assert get_rag_batch_retry() == 1
+
+    monkeypatch.setenv("RAG_BATCH_RETRY", "0")
+    assert get_rag_batch_retry() == 0
 
 
 def test_concurrency_one_preserves_serial_order(monkeypatch):
@@ -164,6 +178,79 @@ def test_batch_failure_raises_without_partial_success(monkeypatch):
 
     with pytest.raises(RagBatchExecutionError):
         generate_rag({"facts": [fact("F001"), fact("F002")]})
+
+
+def test_empty_response_retries_once_then_succeeds(monkeypatch):
+    batches = [[fact("F001")]]
+    patch_simple_rag_pipeline(monkeypatch, batches)
+    monkeypatch.setenv("RAG_MAX_CONCURRENCY", "1")
+    monkeypatch.setenv("RAG_BATCH_RETRY", "1")
+    calls = 0
+
+    def empty_then_success(batch, system_prompt):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return {"__empty_response__": True}
+        return batch_result(batch, system_prompt)
+
+    monkeypatch.setattr(rag_agent, "generate_batch", empty_then_success)
+
+    result = generate_rag({"facts": [fact("F001")]})
+
+    assert calls == 2
+    assert result["rag_knowledge"][0]["rag_id"] == "RAG-001"
+    assert result["rag_knowledge"][0]["question"] == "F001 问题"
+
+
+def test_empty_response_retry_failure_still_raises(monkeypatch):
+    batches = [[fact("F001")], [fact("F002")]]
+    patch_simple_rag_pipeline(monkeypatch, batches)
+    monkeypatch.setenv("RAG_MAX_CONCURRENCY", "2")
+    monkeypatch.setenv("RAG_BATCH_RETRY", "1")
+    calls = {"F001": 0, "F002": 0}
+
+    def persistent_empty_for_second_batch(batch, system_prompt):
+        fact_id = batch[0]["fact_id"]
+        calls[fact_id] += 1
+        if fact_id == "F002":
+            return {"__empty_response__": True}
+        return batch_result(batch, system_prompt)
+
+    monkeypatch.setattr(rag_agent, "generate_batch", persistent_empty_for_second_batch)
+
+    with pytest.raises(RagBatchExecutionError):
+        generate_rag({"facts": [fact("F001"), fact("F002")]})
+
+    assert calls["F002"] == 2
+
+
+def test_retry_success_preserves_batch_order_and_rag_ids(monkeypatch):
+    batches = [[fact("F001")], [fact("F002")], [fact("F003")]]
+    patch_simple_rag_pipeline(monkeypatch, batches)
+    monkeypatch.setenv("RAG_MAX_CONCURRENCY", "2")
+    monkeypatch.setenv("RAG_BATCH_RETRY", "1")
+    calls = {"F001": 0, "F002": 0, "F003": 0}
+
+    def retry_second_batch(batch, system_prompt):
+        fact_id = batch[0]["fact_id"]
+        calls[fact_id] += 1
+        if fact_id == "F002" and calls[fact_id] == 1:
+            return {"__empty_response__": True}
+        if fact_id == "F001":
+            time.sleep(0.05)
+        return batch_result(batch, system_prompt)
+
+    monkeypatch.setattr(rag_agent, "generate_batch", retry_second_batch)
+
+    result = generate_rag({"facts": [fact("F001"), fact("F002"), fact("F003")]})
+
+    assert [(item["rag_id"], item["question"]) for item in result["rag_knowledge"]] == [
+        ("RAG-001", "F001 问题"),
+        ("RAG-002", "F002 问题"),
+        ("RAG-003", "F003 问题"),
+    ]
+    assert calls["F002"] == 2
 
 
 def test_empty_input_returns_empty_rag(monkeypatch):
