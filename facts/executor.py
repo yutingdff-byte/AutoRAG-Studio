@@ -38,7 +38,7 @@ def _run_one_chunk(chunk, extract_one):
         )
 
 
-def execute_fact_chunks(chunks, extract_one, max_concurrency=2):
+def execute_fact_chunks(chunks, extract_one, max_concurrency=2, merge_func=None):
     if not chunks:
         return {
             "facts": [],
@@ -84,7 +84,8 @@ def execute_fact_chunks(chunks, extract_one, max_concurrency=2):
     if failures:
         raise FactChunkExecutionError(failures)
 
-    merged = merge_fact_chunk_results(results)
+    merge = merge_func or merge_fact_chunk_results
+    merged = merge(results)
     wall_time = round(perf_counter() - started, 3)
     merged.setdefault("chunk_report", {})
     merged["chunk_report"].update(

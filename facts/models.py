@@ -9,6 +9,7 @@ class FactChunk:
     source_blocks: list[str] = field(default_factory=list)
     context_header: str = ""
     oversized: bool = False
+    record_ids: list[str] = field(default_factory=list)
 
 
 @dataclass

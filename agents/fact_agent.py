@@ -8,6 +8,13 @@ from facts.chunker import (
     build_fact_chunks,
 )
 from facts.executor import execute_fact_chunks
+from facts.merge import merge_record_fact_chunk_results
+from facts.record_chunker import (
+    DEFAULT_FACTS_RECORD_BATCH_MAX_CHARS,
+    DEFAULT_FACTS_RECORD_BATCH_SIZE,
+    build_record_batch_manifest,
+    build_record_fact_chunks,
+)
 from utils.config import get_config
 
 
@@ -557,6 +564,83 @@ def _extract_facts_chunked(material):
     )
 
 
+def _record_chunks_for_material(material):
+    batch_size = _get_int_config(
+        "FACTS_RECORD_BATCH_SIZE",
+        DEFAULT_FACTS_RECORD_BATCH_SIZE
+    )
+    max_chars = _get_int_config(
+        "FACTS_RECORD_BATCH_MAX_CHARS",
+        DEFAULT_FACTS_RECORD_BATCH_MAX_CHARS
+    )
+    return build_record_fact_chunks(
+        material,
+        batch_size=batch_size,
+        max_chars=max_chars
+    )
+
+
+def _has_vehicle_record_chunks(chunks):
+    return any(
+        bool(chunk.record_ids)
+        for chunk in chunks
+    )
+
+
+def _extract_facts_record_aware(material, chunks=None):
+    chunks = chunks if chunks is not None else _record_chunks_for_material(
+        material
+    )
+    if not chunks or not _has_vehicle_record_chunks(
+        chunks
+    ):
+        raise RuntimeError(
+            "Record-aware Facts preparation failed: no vehicle records found"
+        )
+
+    max_concurrency = _get_int_config(
+        "FACTS_MAX_CONCURRENCY",
+        2
+    )
+    manifest = build_record_batch_manifest(
+        chunks
+    )
+
+    print("[FACTS Performance]")
+    print("mode: record_aware")
+    print(f"document_chars: {len(str(material or ''))}")
+    print(f"vehicle_records: {sum(item['record_count'] for item in manifest)}")
+    print(f"batch_count: {len(chunks)}")
+    print(f"record_batch_size: {_get_int_config('FACTS_RECORD_BATCH_SIZE', DEFAULT_FACTS_RECORD_BATCH_SIZE)}")
+    print(f"record_batch_max_chars: {_get_int_config('FACTS_RECORD_BATCH_MAX_CHARS', DEFAULT_FACTS_RECORD_BATCH_MAX_CHARS)}")
+    print(f"max_concurrency: {max_concurrency}")
+
+    result = execute_fact_chunks(
+        chunks,
+        _extract_facts_single,
+        max_concurrency=max_concurrency,
+        merge_func=lambda results: merge_record_fact_chunk_results(
+            results,
+            chunks
+        )
+    )
+    report = result.get(
+        "chunk_report",
+        {}
+    )
+    report[
+        "record_batch_manifest"
+    ] = manifest
+    print(f"request_count: {report.get('request_count', 0)}")
+    print(f"raw_facts: {report.get('raw_facts', 0)}")
+    print(f"exact_duplicates_removed: {report.get('exact_duplicates_removed', 0)}")
+    print(f"final_facts: {report.get('final_facts', 0)}")
+    print(f"facts_wall_time: {report.get('wall_time', 0)}")
+    return normalize_fact_knowledge_type(
+        result
+    )
+
+
 def extract_facts(material):
 
     """
@@ -573,11 +657,31 @@ def extract_facts(material):
 
     mode = get_config(
         "FACTS_MODE",
-        "single"
+        "auto"
     ).strip().lower()
+
+    if mode == "auto":
+        chunks = _record_chunks_for_material(
+            material
+        )
+        if _has_vehicle_record_chunks(
+            chunks
+        ):
+            return _extract_facts_record_aware(
+                material,
+                chunks=chunks
+            )
+        return _extract_facts_single(
+            material
+        )
 
     if mode == "chunked":
         return _extract_facts_chunked(
+            material
+        )
+
+    if mode == "record_aware":
+        return _extract_facts_record_aware(
             material
         )
 

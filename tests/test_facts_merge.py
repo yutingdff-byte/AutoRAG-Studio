@@ -1,4 +1,5 @@
-from facts.merge import merge_fact_chunk_results
+from facts.merge import merge_fact_chunk_results, merge_record_fact_chunk_results
+from facts.models import FactChunk
 from facts.models import FactChunkResult
 
 
@@ -47,3 +48,59 @@ def test_same_content_different_category_is_kept():
     ])
 
     assert len(result["facts"]) == 2
+
+
+def test_record_aware_keeps_same_content_across_different_records():
+    chunks = [
+        FactChunk(
+            chunk_index=0,
+            text="",
+            input_chars=10,
+            record_ids=["VR001"],
+        ),
+        FactChunk(
+            chunk_index=1,
+            text="",
+            input_chars=10,
+            record_ids=["VR002"],
+        ),
+    ]
+    result = merge_record_fact_chunk_results(
+        [
+            _result(0, [{"fact_id": "A", "model": "GS8", "trim": "Max", "category": "价格", "content": "199800"}]),
+            _result(1, [{"fact_id": "B", "model": "E8", "trim": "Max", "category": "价格", "content": "199800"}]),
+        ],
+        chunks,
+    )
+
+    assert len(result["facts"]) == 2
+    assert result["chunk_report"]["exact_duplicates_removed"] == 0
+
+
+def test_record_aware_dedups_exact_duplicate_in_same_record_and_strips_record_id():
+    chunks = [
+        FactChunk(
+            chunk_index=0,
+            text="",
+            input_chars=10,
+            record_ids=["VR001"],
+        )
+    ]
+    result = merge_record_fact_chunk_results(
+        [
+            _result(
+                0,
+                [
+                    {"fact_id": "A", "category": "价格", "content": "199800"},
+                    {"fact_id": "B", "category": "价格", "content": "199800"},
+                ],
+            )
+        ],
+        chunks,
+    )
+
+    assert len(result["facts"]) == 1
+    assert result["facts"][0]["fact_id"] == "F001"
+    assert "record_id" not in result["facts"][0]
+    assert "_record_id" not in result["facts"][0]
+    assert result["chunk_report"]["exact_duplicates_removed"] == 1

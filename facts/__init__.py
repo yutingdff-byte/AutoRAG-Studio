@@ -1,4 +1,6 @@
-"""Experimental Facts extraction helpers.
+"""Facts extraction helpers.
 
-The production default remains FACTS_MODE=single.
+The production default is FACTS_MODE=auto:
+normal materials use single extraction, while vehicle matrices use record-aware
+extraction.
 """
