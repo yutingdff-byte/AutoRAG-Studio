@@ -1,16 +1,18 @@
 # AutoRAG-Studio Project Context
 
-Version: V0.8.0
+Version: V0.8.1
 
-Status: Final Release
+Status: Production Trial Ready
 
-Last Update: 2026-08-12
+Last Update: 2026-08-14
 
 ## Current Stable
 
-`v0.8.0` is the current stable release.
+`v0.8.1` is the current stable internal trial release.
 
-This release preserves the completed Generate baseline, the V0.8 Update closed loop, the RAG performance improvement, and the final release validation results.
+This release preserves the completed Generate baseline, the V0.8 Update closed loop, the RAG performance improvement, and adds complex Excel matrix parsing, RAG empty-response retry, and RAG Coverage Evaluator V2.
+
+V0.8.1 is ready for real user trial feedback. It is not intended to close every P2 optimization item.
 
 ## Product Goal
 
@@ -216,13 +218,47 @@ Exportable Knowledge
 = Knowledge that passes the final export quality gate and enters Excel
 ```
 
+## V0.8.1 Additions
+
+V0.8.1 adds:
+
+- Excel Column-oriented Vehicle Matrix Parser for files where attributes are rows and vehicle versions are columns.
+- Deterministic conversion from complex Excel matrices into complete Vehicle Record blocks.
+- RAG Empty Response Retry Once with fail-fast behavior preserved after retry failure.
+- RAG Coverage Evaluator V2, separating:
+  - Answerability Coverage for release hard gates
+  - Independent FAQ Coverage for optimization/backlog tracking
+
+Complex Excel validation baseline:
+
+```text
+Orientation: COLUMN_ORIENTED_VEHICLE_MATRIX
+Material chars: 49,861
+Vehicle Records: 41
+Series: 13
+Facts: 123
+RAG: 207
+```
+
+Evaluator V2 Answerability Coverage:
+
+```text
+Price: 41/41
+Cash: 41/41
+Trade-in: 35/41
+Finance: 36/41
+Benefit: 39/41
+Activity: 40/41
+```
+
 ## Production Defaults
 
-V0.8 production defaults:
+V0.8.1 production defaults:
 
 ```text
 FACTS_MODE=single
 RAG_MAX_CONCURRENCY=2
+RAG_BATCH_RETRY=1
 QC_MODE=full
 MODEL=deepseek-v4-flash
 temperature=0.2
@@ -334,15 +370,17 @@ Rule First QC framework exists, but it remains experimental. On the saved market
 
 Therefore Full QC remains the V0.8 production default.
 
-## Minor Backlog
+## V0.8.1 Known Backlog
 
-- Facts non-determinism and granularity stability
-- Chunked Facts quality improvement before production rollout
-- Rule First QC routing optimization
-- Targeted Semantic Judge for future low-confidence or complex cases if needed
-- Cloud deployment
-- UI detail polish
+- Dynamic FAQ granularity optimization, especially independent Cash, Trade-in, and Finance FAQs.
+- Color and exterior appearance extraction improvements in Step1 Facts.
+- Retry policy expansion for 429, timeout, and connection errors.
+- Facts non-determinism and granularity stability.
+- Chunked Facts quality improvement before production rollout.
+- Rule First QC routing optimization.
+- Targeted Semantic Judge for future low-confidence or complex cases if needed.
+- UI detail polish.
 
 ## Next Stage
 
-Do not expand V0.8 Update business features in the final release line. Next work should be V0.8 Cloud Deployment or post-release planning, depending on user decision.
+Do not expand V0.8 Update business features in the V0.8.1 release line. Next work should be real user feedback collection and V0.9 planning based on observed badcases.

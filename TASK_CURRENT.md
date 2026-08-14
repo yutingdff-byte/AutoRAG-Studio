@@ -1,93 +1,86 @@
 # AutoRAG-Studio Current Task
 
-Version: V0.8.0
+Version: V0.8.1
 
-Status: Completed
+Status: Released for Internal Trial
 
-Last Update: 2026-08-12
+Last Update: 2026-08-14
 
 ## Current Stable Release
 
 ```text
-v0.8.0
+v0.8.1
 ```
 
-The V0.8 final release preserves:
+V0.8.1 includes:
 
-- Generate stable production chain
-- Update closed loop
-- Historical Restore
-- Diff V0.2
-- Complex Relation Grouping
-- Exception Review
-- Merge
-- Exact Duplicate Cleanup
-- Dual Excel Export
-- RAG concurrency performance baseline
-- Experimental Rule First QC framework
-- Experimental chunked Facts framework
-- TASK10 End-to-End Release Validation
-- TASK10.1 Facts Coverage Release Gate
+- V0.8 Generate stable production chain
+- V0.8 Update closed loop
+- Excel Column-oriented Vehicle Matrix Parser
+- Complex Excel Vehicle Record parsing
+- RAG Empty Response Retry Once
+- RAG Coverage Evaluator V2
+- Export regression coverage
 
 ## Current Production Defaults
 
 ```text
 FACTS_MODE=single
 RAG_MAX_CONCURRENCY=2
+RAG_BATCH_RETRY=1
 QC_MODE=full
+MODEL=deepseek-v4-flash
+temperature=0.2
 ```
 
-`FACTS_MODE=chunked` and `QC_MODE=rule_first` exist only as experimental capabilities in V0.8.0.
+`FACTS_MODE=chunked` and `QC_MODE=rule_first` remain experimental capabilities and are not production defaults.
 
-## Completed V0.8 Work
-
-- Architecture and UI foundation
-- Update historical knowledge restore
-- System-standard Word restore
-- Image-dominant Word parsing for new source materials
-- New material generation in Update through existing Parser -> Facts -> RAG
-- Diff V0.2 rule matching
-- Complex relation grouping
-- Exception Review
-- Deterministic Merge
-- Exact Duplicate Cleanup
-- Update dual Excel export
-- Streamlit session state stability
-- Update UX simplification
-- RAG batch concurrency performance optimization
-- QC Rule First experiment framework
-- Facts chunking and controlled concurrency experiment framework
-- Oversized Facts chunk safe splitting
-- End-to-end release validation
-- Facts coverage release gate
-
-## Release Validation
+## Release Gate
 
 ```text
-TASK10:
-RELEASE READY WITH MINOR BACKLOG
-
-TASK10.1:
-PASS WITH MINOR BACKLOG
+TASK12.8:
+RELEASE READY WITH BACKLOG
 ```
 
-Known minor backlog:
+Hard Gate uses Answerability Coverage:
 
-- Facts non-determinism and granularity stability
-- Chunked Facts quality improvement before production rollout
-- Rule First QC routing optimization
-- Targeted Semantic Judge only if future badcases require it
-- Cloud Deployment
-- UI detail polish
+```text
+Price: 41/41
+Cash: 41/41
+Trade-in: 35/41
+Finance: 36/41
+Benefit: 39/41
+Activity: 40/41
+```
+
+Full regression:
+
+```text
+213 passed, 2 skipped
+```
+
+## Known P2 Backlog
+
+- Dynamic FAQ granularity optimization, especially independent Cash, Trade-in, and Finance FAQs.
+- Color and exterior appearance extraction improvements in Step1 Facts.
+- Retry policy expansion for 429, timeout, and connection errors.
+- Chunked Facts quality improvement before production rollout.
+- Rule First QC routing optimization.
 
 ## Next
 
 ```text
-V0.8 Cloud Deployment / Post-release Planning
+Real User Feedback Collection
 ```
 
-Wait for user decision before starting the next task.
+Collect production-trial badcases from real users, then classify them into:
+
+- Input/parser issues
+- Facts coverage issues
+- RAG answerability or FAQ granularity issues
+- Scope or cross-vehicle issues
+- Reliability issues
 
 ## Do Not Start Automatically
 
-Do not begin V0.8.1, V0.9, Cloud Deployment, or new feature development without explicit user instruction.
+Do not begin V0.9 optimization, Prompt changes, Step1/Step2 changes, or new feature development without explicit user instruction.

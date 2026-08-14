@@ -1,10 +1,10 @@
 # AutoRAG-Studio Roadmap
 
-Current Stable: `v0.8.0`
+Current Stable: `v0.8.1`
 
-Current Branch: `feature/v0.8-architecture-ui`
+Current Branch: `main`
 
-Date: 2026-08-12
+Date: 2026-08-14
 
 ## Product Direction
 
@@ -152,21 +152,66 @@ Tag: `v0.8.0`
 - TASK10.1 Facts Coverage Release Gate completed with PASS WITH MINOR BACKLOG
 - V0.8 has no known P0/P1 release blocker
 
+## V0.8.1 Internal Trial Release
+
+Status: Completed
+
+Tag: `v0.8.1`
+
+### Complex Excel Parser
+
+- Added Column-oriented Vehicle Matrix Parser.
+- Supports `COLUMN_ORIENTED_VEHICLE_MATRIX`.
+- Converts attribute-row / vehicle-version-column Excel files into deterministic Vehicle Record blocks.
+- Real validation:
+  - Material chars: 49,861
+  - Vehicle Records: 41
+  - Series: 13
+  - Facts: 123
+  - RAG: 207
+
+### RAG Reliability
+
+- Added Empty Response Retry Once for RAG batch execution.
+- Retry success continues normal merge.
+- Retry failure remains fail-fast and does not output a partial knowledge base.
+
+### Evaluation Framework
+
+- Added RAG Coverage Evaluator V2.
+- Release hard gate now uses Answerability Coverage.
+- Independent FAQ Coverage is retained as a soft optimization metric.
+- Fixed evaluator false negatives such as old `Price 5/41` and dynamic `0/41` reports.
+
+### Release Gate
+
+- TASK12.8 V0.8.1 Final Release Gate completed.
+- Result: RELEASE READY WITH BACKLOG.
+- Full regression: `213 passed, 2 skipped`.
+- No known P0/P1 release blocker.
+
 ## Next Planned Work
 
-### V0.8 Cloud Deployment
+### V0.9 Feedback Loop
 
-Status: Waiting for user decision
+Status: Next
 
 Goal:
 
-Deploy V0.8.0 after final release tagging and GitHub push.
+Collect real user feedback from V0.8.1 internal trial usage, classify badcases, and turn them into evaluation-backed optimization tasks.
+
+Focus areas:
+
+- Input format badcases
+- Knowledge coverage and granularity badcases
+- Agent answerability and scope badcases
+- Dynamic FAQ optimization
+- Color/exterior extraction
+- Reliability hardening beyond empty-response retry
 
 ### End-to-End Performance Benchmark
 
 Status: Future
-
-Goal:
 
 Continue measuring production workloads after cloud deployment or additional local acceptance.
 
@@ -176,7 +221,7 @@ Status: Future
 
 Goal:
 
-Plan V0.8.x or V0.9 based on real user acceptance and production badcases.
+Plan V0.9 based on real user acceptance and production badcases.
 
 ## Deferred Work
 
@@ -189,7 +234,6 @@ Plan V0.8.x or V0.9 based on real user acceptance and production badcases.
 - QC concurrency
 - Facts prompt changes
 - Batch size experiments
-- Cloud Deployment
 - Version History
 - Incremental Update history
 - Dynamic policy lifecycle

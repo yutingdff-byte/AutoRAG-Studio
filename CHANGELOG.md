@@ -1,5 +1,58 @@
 # AutoRAG-Studio Changelog
 
+## V0.8.1 - Complex Excel Matrix and Evaluation Reliability
+
+Date: 2026-08-14
+
+Status: Internal Trial Release
+
+### Added
+
+- Added Excel Column-oriented Vehicle Matrix Parser for files where attributes are rows and vehicle versions are columns.
+- Added deterministic transposition from complex Excel matrix files into complete Vehicle Record blocks before Facts/RAG.
+- Added RAG Empty Response Retry Once for failed batch reliability while preserving fail-fast behavior when retry also fails.
+- Added RAG Coverage Evaluator V2 with separate Answerability Coverage and Independent FAQ Coverage metrics.
+
+### Changed
+
+- Release Gate now uses Answerability Coverage as the hard gate instead of independent FAQ count.
+- Independent FAQ Coverage is retained as an optimization metric for Step2 FAQ granularity backlog.
+- Complex Excel validation now distinguishes evaluator false negatives from true RAG answerability gaps.
+
+### Fixed
+
+- Fixed Excel matrix parsing where row attributes and column vehicle versions were previously misread as ordinary tables.
+- Fixed transient empty RAG batch responses causing full pipeline failure without a controlled recovery attempt.
+- Fixed RAG coverage evaluator false negatives such as `Price 5/41` and dynamic `0/41` when usable RAG answers existed.
+
+### Validation
+
+- Full regression: `213 passed, 2 skipped`.
+- Complex Excel parser validation:
+  - Orientation: `COLUMN_ORIENTED_VEHICLE_MATRIX`
+  - Material chars: 49,861
+  - Vehicle Records: 41
+  - Series: 13
+  - Price Records: 41
+- Complex Excel Facts/RAG validation:
+  - Facts: 123
+  - RAG: 207
+  - RAG batches: 5
+  - Failed batches: 0
+- Evaluator V2 Answerability Coverage:
+  - Price: 41/41
+  - Cash: 41/41
+  - Trade-in: 35/41
+  - Finance: 36/41
+  - Benefit: 39/41
+  - Activity: 40/41
+
+### Known Backlog
+
+- Dynamic FAQ granularity optimization, especially independent Cash, Trade-in, and Finance FAQs.
+- Color and exterior appearance extraction improvements in Step1 Facts.
+- Retry policy expansion for 429, timeout, and connection errors.
+
 ## V0.8.0 - Update Closed Loop Final Release
 
 Date: 2026-08-12
