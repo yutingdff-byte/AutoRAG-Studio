@@ -1,10 +1,10 @@
 # AutoRAG-Studio
 
-Current version: V0.8.0
+Current version: V0.8.2
 
 AutoRAG-Studio generates and updates reviewable AI outbound-call knowledge bases from automotive business materials.
 
-V0.8.0 keeps the Generate workflow stable and adds the Update workflow for restoring historical knowledge, detecting changes, merging decisions, and exporting a new production-ready knowledge base.
+V0.8.2 keeps the Generate and Update workflows stable and adds production record-aware Facts routing for complex vehicle matrix Excel files.
 
 ## What It Does
 
@@ -26,6 +26,16 @@ Upload files
 -> QC Agent
 -> Knowledge Review Center
 -> Dual Excel export
+```
+
+Facts routing:
+
+```text
+Normal Word / normal row-oriented Excel
+-> single
+
+COLUMN_ORIENTED_VEHICLE_MATRIX
+-> record_aware
 ```
 
 Update pipeline:
@@ -63,12 +73,16 @@ Excel columns stay fixed:
 ## Production Defaults
 
 ```env
-FACTS_MODE=single
+FACTS_MODE=auto
+FACTS_RECORD_BATCH_SIZE=3
+FACTS_RECORD_BATCH_MAX_CHARS=12000
+FACTS_MAX_CONCURRENCY=2
 RAG_MAX_CONCURRENCY=2
+RAG_BATCH_RETRY=1
 QC_MODE=full
 ```
 
-`FACTS_MODE=chunked` and `QC_MODE=rule_first` are experimental and are not the V0.8.0 production defaults.
+`FACTS_MODE=chunked` and `QC_MODE=rule_first` are experimental and are not the V0.8.2 production defaults.
 
 ## Local Setup
 

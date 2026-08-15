@@ -1,10 +1,10 @@
 # AutoRAG-Studio Roadmap
 
-Current Stable: `v0.8.1`
+Current Stable: `v0.8.2`
 
 Current Branch: `main`
 
-Date: 2026-08-14
+Date: 2026-08-15
 
 ## Product Direction
 
@@ -190,15 +190,75 @@ Tag: `v0.8.1`
 - Full regression: `213 passed, 2 skipped`.
 - No known P0/P1 release blocker.
 
+## V0.8.2 Complex Facts Reliability Patch
+
+Status: Completed
+
+Tag: `v0.8.2`
+
+### Production Facts Routing
+
+- Added production `FACTS_MODE=auto`.
+- Normal Word and normal row-oriented Excel inputs continue using Single Facts mode.
+- `COLUMN_ORIENTED_VEHICLE_MATRIX` inputs automatically use record-aware Facts generation.
+- Record-aware production candidate:
+  - `FACTS_RECORD_BATCH_SIZE=3`
+  - `FACTS_RECORD_BATCH_MAX_CHARS=12000`
+  - `FACTS_MAX_CONCURRENCY=2`
+
+### Complex Matrix Reliability
+
+- Added Vehicle Record-aware Facts batching.
+- Preserves complete vehicle/version record boundaries during Facts extraction.
+- Uses internal stable `VRxxx` trace IDs for evaluation and debug.
+- Scopes exact dedup by vehicle record to avoid removing same-content Facts from different vehicles or versions.
+
+### Validation
+
+- Complex Excel production E2E completed:
+  - Vehicle Records: 41
+  - Series: 13
+  - Facts: 763
+  - RAG: 421
+  - QC warnings: 21
+  - QC errors: 0
+  - Exportable: 391
+  - Vehicle configuration Excel: 210 rows
+  - Price/policy Excel: 181 rows
+- TASK12.14 accepted validation debt for:
+  - Normal Word Generate owner smoke
+  - Small Update owner smoke
+
+### Known Backlog
+
+- Complex matrix performance remains around 40 minutes in the 41-vehicle benchmark.
+- Dynamic FAQ granularity optimization.
+- Color/exterior color Facts coverage.
+- Retry policy expansion for 429, timeout, and connection errors.
+
 ## Next Planned Work
 
-### V0.9 Feedback Loop
+### Internal Trial and Owner Smoke
 
 Status: Next
 
 Goal:
 
-Collect real user feedback from V0.8.1 internal trial usage, classify badcases, and turn them into evaluation-backed optimization tasks.
+Complete owner smoke for the deployed V0.8.2 Cloud build, then move to internal trial if normal Word Generate and small Update both pass.
+
+Focus areas:
+
+- Owner normal Word Generate smoke
+- Owner small Update smoke
+- Internal trial readiness
+
+### V0.9 Feedback Loop
+
+Status: Future
+
+Goal:
+
+Collect real user feedback from V0.8.2 internal trial usage, classify badcases, and turn them into evaluation-backed optimization tasks.
 
 Focus areas:
 

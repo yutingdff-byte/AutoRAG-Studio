@@ -1,5 +1,64 @@
 # AutoRAG-Studio Changelog
 
+## V0.8.2 - Complex Excel Reliability Upgrade
+
+Date: 2026-08-15
+
+Status: Deployed - Owner Smoke Pending
+
+### Added
+
+- Added production `FACTS_MODE=auto`.
+- Added Record-aware Facts Routing for complex vehicle matrix Excel files.
+- Added Vehicle Record-aware Facts batching for `COLUMN_ORIENTED_VEHICLE_MATRIX` materials.
+- Added stable internal `VRxxx` trace IDs for record-aware Facts evaluation and debug.
+- Added scoped exact dedup for multi-vehicle Facts so same-content facts from different vehicle/version records are not incorrectly removed.
+
+### Changed
+
+- Normal Word and normal row-oriented Excel inputs continue using Single Facts mode.
+- Complex `COLUMN_ORIENTED_VEHICLE_MATRIX` inputs automatically use record-aware Facts generation.
+- Record-aware production candidate parameters:
+  - `FACTS_RECORD_BATCH_SIZE=3`
+  - `FACTS_RECORD_BATCH_MAX_CHARS=12000`
+  - `FACTS_MAX_CONCURRENCY=2`
+
+### Fixed
+
+- Fixed complex vehicle matrix Excel inputs that could trigger `finish_reason=length` and Facts JSON truncation under Single mode.
+- Fixed risk of same-content Facts from different vehicle/version scopes being deduplicated together in record-aware merge.
+- Fixed complex multi-model/version input handling so vehicle and version boundaries are preserved during Facts generation.
+
+### Validation
+
+- Complex Excel production E2E validation:
+  - Orientation: `COLUMN_ORIENTED_VEHICLE_MATRIX`
+  - Vehicle Records: 41
+  - Series: 13
+  - Facts: 763
+  - RAG: 421
+  - QC warnings: 21
+  - QC errors: 0
+  - Exportable RAG: 391
+  - Vehicle configuration Excel: 210 rows
+  - Price/policy Excel: 181 rows
+- E8 Max price validation:
+  - `向往E8 Max版`
+  - `19.98万元`
+  - Present in final price/policy Excel.
+- Release hygiene:
+  - Full regression reused from latest V0.8.2 gate: `236 passed, 2 skipped`
+  - `compileall .`: PASS
+  - `git diff --check`: PASS
+
+### Known Backlog
+
+- Complex matrix generation performance remains slow, around 40 minutes in the 41-vehicle benchmark.
+- Dynamic FAQ granularity optimization, especially independent Cash, Trade-in, and Finance FAQs.
+- Color and exterior color Facts coverage.
+- Retry policy expansion for 429, timeout, and connection errors.
+- Cloud normal Word Generate and small Update owner smoke tests remain pending after deployment.
+
 ## V0.8.1 - Complex Excel Matrix and Evaluation Reliability
 
 Date: 2026-08-14

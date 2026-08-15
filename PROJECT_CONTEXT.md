@@ -1,18 +1,18 @@
 # AutoRAG-Studio Project Context
 
-Version: V0.8.1
+Version: V0.8.2
 
-Status: Production Trial Ready
+Status: Deployed - Owner Smoke Pending
 
-Last Update: 2026-08-14
+Last Update: 2026-08-15
 
 ## Current Stable
 
-`v0.8.1` is the current stable internal trial release.
+`v0.8.2` is the current stable deployed candidate.
 
-This release preserves the completed Generate baseline, the V0.8 Update closed loop, the RAG performance improvement, and adds complex Excel matrix parsing, RAG empty-response retry, and RAG Coverage Evaluator V2.
+This release preserves the completed Generate baseline, the V0.8 Update closed loop, the RAG performance improvement, complex Excel matrix parsing, RAG empty-response retry, and RAG Coverage Evaluator V2.
 
-V0.8.1 is ready for real user trial feedback. It is not intended to close every P2 optimization item.
+V0.8.2 adds production `FACTS_MODE=auto` with record-aware routing for complex vehicle matrix Excel files. It is deployed for owner smoke validation before broader internal trial.
 
 ## Product Goal
 
@@ -217,6 +217,68 @@ Final Clean Knowledge
 Exportable Knowledge
 = Knowledge that passes the final export quality gate and enters Excel
 ```
+
+## Production Defaults
+
+```text
+FACTS_MODE=auto
+FACTS_RECORD_BATCH_SIZE=3
+FACTS_RECORD_BATCH_MAX_CHARS=12000
+FACTS_MAX_CONCURRENCY=2
+
+RAG_MAX_CONCURRENCY=2
+RAG_BATCH_RETRY=1
+
+QC_MODE=full
+
+MODEL=deepseek-v4-flash
+temperature=0.2
+```
+
+Facts routing:
+
+```text
+Normal Word / normal row-oriented Excel
+-> single
+
+COLUMN_ORIENTED_VEHICLE_MATRIX
+-> record_aware
+```
+
+## V0.8.2 Additions
+
+V0.8.2 adds:
+
+- Production `FACTS_MODE=auto`.
+- Record-aware Facts Routing for complex vehicle matrix Excel files.
+- Vehicle Record-aware batching with stable internal `VRxxx` trace IDs.
+- Scoped exact dedup for record-aware multi-vehicle Facts.
+
+Complex Excel production E2E baseline:
+
+```text
+Orientation: COLUMN_ORIENTED_VEHICLE_MATRIX
+Vehicle Records: 41
+Series: 13
+Facts: 763
+RAG: 421
+QC warnings: 21
+QC errors: 0
+Exportable: 391
+Vehicle configuration Excel: 210 rows
+Price/policy Excel: 181 rows
+```
+
+V0.8.2 release status:
+
+```text
+DEPLOYED - OWNER SMOKE PENDING
+```
+
+Pending owner smoke:
+
+- Normal Word Generate smoke.
+- Small Update smoke.
 
 ## V0.8.1 Additions
 
