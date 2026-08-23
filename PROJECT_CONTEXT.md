@@ -2,17 +2,29 @@
 
 Version: V0.8.2
 
-Status: Deployed - Owner Smoke Pending
+Status: Ready for Internal Trial
 
-Last Update: 2026-08-15
+Last Update: 2026-08-23
 
 ## Current Stable
 
-`v0.8.2` is the current stable deployed candidate.
+`v0.8.2` is the current stable internal trial release.
 
 This release preserves the completed Generate baseline, the V0.8 Update closed loop, the RAG performance improvement, complex Excel matrix parsing, RAG empty-response retry, and RAG Coverage Evaluator V2.
 
-V0.8.2 adds production `FACTS_MODE=auto` with record-aware routing for complex vehicle matrix Excel files. It is deployed for owner smoke validation before broader internal trial.
+V0.8.2 adds production `FACTS_MODE=auto` with record-aware routing for complex vehicle matrix Excel files. Normal Word Generate, complex Matrix Excel Generate, and small Update smoke are validated.
+
+Cloud URL:
+
+```text
+https://autorag-studio.streamlit.app/
+```
+
+Current phase:
+
+```text
+Real User Feedback & Badcase Collection
+```
 
 ## Product Goal
 
@@ -272,13 +284,82 @@ Price/policy Excel: 181 rows
 V0.8.2 release status:
 
 ```text
-DEPLOYED - OWNER SMOKE PENDING
+READY FOR INTERNAL TRIAL
 ```
 
-Pending owner smoke:
+Owner smoke validation:
 
-- Normal Word Generate smoke.
-- Small Update smoke.
+- Normal Word Generate: PASS
+- Complex Matrix Excel Generate: PASS
+- Small Update: PASS
+
+Normal Word smoke:
+
+```text
+Sample: tests/data/test.docx
+FACTS_MODE=auto -> single
+Material chars: 104
+Facts: 5
+RAG: 5
+QC issues: 1
+Exportable: 5
+Static rows: 4
+Dynamic rows: 1
+Total: 92.098s
+```
+
+Small Update smoke:
+
+```text
+History: 3-row standard historical Excel
+New material: tests/data/test.docx
+Restore: 3/3
+ADDED: 2
+UPDATED: 3
+UNCHANGED: 0
+REVIEW_REQUIRED: 0
+Final Clean: 5
+Dedup Removed: 0
+Static rows: 4
+Dynamic rows: 1
+```
+
+Engineering story:
+
+```text
+Complex multi-vehicle Matrix Excel
+-> Parser recovers 41 Vehicle Records
+-> FACTS_MODE=single may produce finish_reason=length
+-> JSON truncation
+-> Facts=None
+-> Generate fail-fast
+```
+
+V0.8.2 solution:
+
+```text
+Parser orientation detection
+-> auto Facts routing
+-> Vehicle Record-aware batching
+-> Scoped exact dedup
+-> RAG
+-> QC
+-> Dual Excel Export
+```
+
+Record-aware is not character chunking. A Vehicle Record is the minimum indivisible business boundary. Normal documents continue using Single mode.
+
+Internal trial rule:
+
+Do not proactively optimize prompts, concurrency, batch size, semantic dedup, color extraction, or retry scope unless real user feedback proves a priority issue.
+
+Known P2 backlog:
+
+- Dynamic FAQ granularity for Cash, Trade-in, and Finance.
+- Color/exterior Facts coverage.
+- Retry expansion for 429, timeout, and connection error.
+- Complex matrix performance, currently around 2468s / 41 minutes in the 41-vehicle benchmark.
+- Development environment cleanup: local `.venv` points to a missing Python 3.14 runtime; TASK12.16 smoke used the bundled runtime plus project requirements.
 
 ## V0.8.1 Additions
 

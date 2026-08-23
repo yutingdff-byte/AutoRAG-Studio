@@ -2,6 +2,8 @@
 
 Current version: V0.8.2
 
+Status: Ready for Internal Trial
+
 AutoRAG-Studio generates and updates reviewable AI outbound-call knowledge bases from automotive business materials.
 
 V0.8.2 keeps the Generate and Update workflows stable and adds production record-aware Facts routing for complex vehicle matrix Excel files.
@@ -126,6 +128,12 @@ Config lookup order:
 
 ## Streamlit Cloud
 
+Cloud URL:
+
+```text
+https://autorag-studio.streamlit.app/
+```
+
 Main entry file:
 
 ```text
@@ -150,14 +158,16 @@ Please do not upload customer-sensitive, unpublished, confidential, or personal 
 
 ## Current Boundaries
 
-Not included in V0.8.0:
+Not included in V0.8.2:
 
 - QC auto-fix Agent Loop
 - PPT parsing
 - Database
 - User permission system
 - Project management
-- Cloud deployment for the final V0.8.0 release
+- Prompt optimization without real feedback evidence
+- Semantic dedup
+- Retry expansion beyond empty response
 - Default rollout of chunked Facts extraction
 - Default rollout of Rule First QC
 - Semantic Judge / Embedding / Vector DB

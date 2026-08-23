@@ -4,7 +4,7 @@ Current Stable: `v0.8.2`
 
 Current Branch: `main`
 
-Date: 2026-08-15
+Date: 2026-08-23
 
 ## Product Direction
 
@@ -225,9 +225,10 @@ Tag: `v0.8.2`
   - Exportable: 391
   - Vehicle configuration Excel: 210 rows
   - Price/policy Excel: 181 rows
-- TASK12.14 accepted validation debt for:
-  - Normal Word Generate owner smoke
-  - Small Update owner smoke
+- Owner smoke completed:
+  - Normal Word Generate: PASS
+  - Small Update: PASS
+  - V0.8.2 status: READY FOR INTERNAL TRIAL
 
 ### Known Backlog
 
@@ -238,27 +239,30 @@ Tag: `v0.8.2`
 
 ## Next Planned Work
 
-### Internal Trial and Owner Smoke
+### Internal Trial
 
 Status: Next
 
 Goal:
 
-Complete owner smoke for the deployed V0.8.2 Cloud build, then move to internal trial if normal Word Generate and small Update both pass.
+Collect real user feedback from V0.8.2 internal trial usage and classify badcases before defining V0.9 scope.
 
 Focus areas:
 
-- Owner normal Word Generate smoke
-- Owner small Update smoke
-- Internal trial readiness
+- Invite 3-5 internal users
+- Collect Generate and Update feedback
+- Record reproducible badcases
+- Accumulate about 10-20 useful feedback items
+- Run feedback review
+- Define V0.9 scope from evidence
 
-### V0.9 Feedback Loop
+### V0.9 Discovery
 
 Status: Future
 
 Goal:
 
-Collect real user feedback from V0.8.2 internal trial usage, classify badcases, and turn them into evaluation-backed optimization tasks.
+Turn internal trial evidence into prioritized V0.9 optimization tasks.
 
 Focus areas:
 
@@ -268,6 +272,8 @@ Focus areas:
 - Dynamic FAQ optimization
 - Color/exterior extraction
 - Reliability hardening beyond empty-response retry
+
+Do not open prompt tuning, concurrency changes, batch-size changes, semantic dedup, color optimization, or retry expansion without real feedback evidence.
 
 ### End-to-End Performance Benchmark
 

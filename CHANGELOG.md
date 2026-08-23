@@ -4,7 +4,7 @@
 
 Date: 2026-08-15
 
-Status: Deployed - Owner Smoke Pending
+Status: Ready for Internal Trial
 
 ### Added
 
@@ -50,6 +50,13 @@ Status: Deployed - Owner Smoke Pending
   - Full regression reused from latest V0.8.2 gate: `236 passed, 2 skipped`
   - `compileall .`: PASS
   - `git diff --check`: PASS
+- Owner smoke validation:
+  - Normal Word Generate: PASS
+  - Small Update: PASS
+  - Normal Word sample: `tests/data/test.docx`
+  - Normal Word routing: `FACTS_MODE=auto -> single`
+  - Normal Word result: 5 Facts, 5 RAG, 5 exportable rows
+  - Update smoke result: 3/3 restored, 2 ADDED, 3 UPDATED, 0 REVIEW_REQUIRED, 5 final clean knowledge rows
 
 ### Known Backlog
 
@@ -57,7 +64,7 @@ Status: Deployed - Owner Smoke Pending
 - Dynamic FAQ granularity optimization, especially independent Cash, Trade-in, and Finance FAQs.
 - Color and exterior color Facts coverage.
 - Retry policy expansion for 429, timeout, and connection errors.
-- Cloud normal Word Generate and small Update owner smoke tests remain pending after deployment.
+- Local development environment cleanup: the repository `.venv` points to a missing Python 3.14 runtime; TASK12.16 smoke used the bundled runtime with project requirements installed.
 
 ## V0.8.1 - Complex Excel Matrix and Evaluation Reliability
 

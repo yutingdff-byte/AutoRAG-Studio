@@ -2,9 +2,9 @@
 
 Version: V0.8.2
 
-Status: Cloud Deployment / Owner Smoke
+Status: Ready for Internal Trial
 
-Last Update: 2026-08-15
+Last Update: 2026-08-23
 
 ## Current Stable Release
 
@@ -53,8 +53,8 @@ COLUMN_ORIENTED_VEHICLE_MATRIX
 ## Release Gate
 
 ```text
-TASK12.15:
-DEPLOYED - OWNER SMOKE PENDING
+TASK12.16:
+OWNER SMOKE PASS
 ```
 
 Complex Excel E2E validation:
@@ -77,6 +77,42 @@ Latest full regression:
 236 passed, 2 skipped
 ```
 
+Owner smoke validation:
+
+```text
+Normal Word Generate: PASS
+Complex Matrix Generate: PASS
+Small Update: PASS
+```
+
+Normal Word smoke:
+
+```text
+Sample: tests/data/test.docx
+FACTS_MODE=auto -> single
+Facts: 5
+RAG: 5
+Exportable: 5
+Static rows: 4
+Dynamic rows: 1
+Total: 92.098s
+```
+
+Small Update smoke:
+
+```text
+History: 3-row standard historical Excel
+New material: tests/data/test.docx
+Restore: 3/3
+ADDED: 2
+UPDATED: 3
+UNCHANGED: 0
+REVIEW_REQUIRED: 0
+Final Clean: 5
+Static rows: 4
+Dynamic rows: 1
+```
+
 ## Known P2 Backlog
 
 - Dynamic FAQ granularity optimization, especially independent Cash, Trade-in, and Finance FAQs.
@@ -89,24 +125,33 @@ Latest full regression:
 ## Next
 
 ```text
-Owner Smoke Validation
+Real User Feedback & Badcase Collection
 ```
 
-Deployment owner checklist:
+Current goal:
 
-1. Normal Word Generate smoke
-2. Small Update smoke
-3. If both pass, mark V0.8.2 ready for internal trial
-4. If either fails, create a focused V0.8.2 hotfix branch
+Collect real user feedback and production badcases. There is no active development task.
 
-After owner smoke, collect production-trial badcases from real users and classify them into:
+Recommended next actions:
+
+1. Invite 3-5 internal users
+2. Collect Generate / Update feedback
+3. Record Badcases with `FEEDBACK_TEMPLATE.md`
+4. Accumulate about 10-20 useful feedback items
+5. Run Feedback Review
+6. Define V0.9 scope
+
+Classify badcases into:
 
 - Input/parser issues
 - Facts coverage issues
 - RAG answerability or FAQ granularity issues
 - Scope or cross-vehicle issues
 - Reliability issues
+ - QC issues
+ - Export issues
+ - UX/performance issues
 
 ## Do Not Start Automatically
 
-Do not begin V0.9 optimization, Prompt changes, Step1/Step2 changes, or new feature development without explicit user instruction.
+Do not begin V0.9 optimization, Prompt changes, Step1/Step2 changes, concurrency changes, semantic dedup, retry expansion, or new feature development without explicit user instruction and real feedback evidence.
