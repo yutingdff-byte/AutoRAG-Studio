@@ -216,6 +216,23 @@ def run_pipeline(
         run_id
     )
 
+    material_path = os.path.join(
+        output_dir,
+        "material.txt"
+    )
+
+    with open(
+        material_path,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(
+            str(
+                material or ""
+            )
+        )
+
 
 
     # =====================
@@ -422,6 +439,8 @@ def run_pipeline(
                 output_dir,
                 "facts.json"
             ),
+
+            "material": material_path,
 
             "rag": os.path.join(
                 output_dir,

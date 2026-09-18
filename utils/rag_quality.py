@@ -36,6 +36,19 @@ MISSING_HINT_PHRASES = [
     "参考后续官方信息"
 ]
 
+
+HIGH_RISK_CONFIRM_TOPICS = [
+    "金融",
+    "贷款",
+    "分期",
+    "首付",
+    "利率",
+    "费率",
+    "质保",
+    "保养",
+    "售后",
+]
+
 TOPIC_KEYWORDS = {
     "价格": [
         "价格",
@@ -245,6 +258,27 @@ def is_missing_answer(answer):
     )
 
 
+def is_high_risk_unconfirmed_item(item):
+
+    text = get_item_text(
+        item
+    )
+
+    if str(
+        item.get(
+            "trim",
+            ""
+        )
+    ).strip() != "需确认":
+
+        return False
+
+    return any(
+        keyword in text
+        for keyword in HIGH_RISK_CONFIRM_TOPICS
+    )
+
+
 def is_exportable_rag(item):
 
     if not isinstance(
@@ -287,6 +321,12 @@ def is_exportable_rag(item):
         "review_type",
         ""
     ) in BLOCKING_REVIEW_TYPES:
+
+        return False
+
+    if is_high_risk_unconfirmed_item(
+        item
+    ):
 
         return False
 

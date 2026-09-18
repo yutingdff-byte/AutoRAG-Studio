@@ -56,6 +56,46 @@ DYNAMIC_KEYWORDS = [
 ]
 
 
+SOURCE_UNCERTAIN_PHRASES = [
+    "图片内容无法确认",
+    "无法确认",
+    "未提供",
+    "缺少",
+]
+
+
+PROTECTED_SOURCE_TERMS = [
+    "CarPlay",
+    "Android Auto",
+    "HUAWEI HiCar",
+    "ICCOA Carlink",
+    "座椅通风",
+    "通风",
+    "后排座椅加热",
+    "后排独立空调",
+    "单独调温",
+    "整车质保",
+    "质保",
+    "保养周期",
+    "首付",
+    "年化利率",
+    "贷款",
+    "最长可贷",
+    "利率",
+]
+
+
+HIGH_RISK_FACT_CATEGORIES = [
+    "金融",
+    "权益",
+    "活动",
+    "政策",
+    "售后",
+    "质保",
+    "保养",
+]
+
+
 POLICY_DATE_RANGE_PATTERN = re.compile(
     r"(\d{4})年(\d{1,2})月(\d{1,2})日"
     r"(?:至|到|-|—|~)"
@@ -461,6 +501,418 @@ def normalize_fact_knowledge_type(data):
     return data
 
 
+def _normalize_grounding_text(value):
+
+    return re.sub(
+        r"\s+",
+        "",
+        str(
+            value or ""
+        ).lower()
+    )
+
+
+def _extract_numeric_tokens(value):
+
+    tokens = []
+
+    for match in re.finditer(
+        r"(?<![A-Za-z])\d+(?:\.\d+)?(?![A-Za-z])",
+        str(
+            value or ""
+        )
+    ):
+
+        token = match.group(
+            0
+        )
+
+        if token not in tokens:
+
+            tokens.append(
+                token
+            )
+
+    return tokens
+
+
+def _has_source_uncertainty_near_topic(material, fact):
+
+    category_text = " ".join(
+        str(
+            fact.get(
+                field,
+                ""
+            )
+        )
+        for field in [
+            "category",
+            "content",
+            "source"
+        ]
+    )
+
+    if not any(
+        keyword in category_text
+        for keyword in HIGH_RISK_FACT_CATEGORIES
+    ):
+
+        return False
+
+    material_text = str(
+        material or ""
+    )
+
+    for keyword in HIGH_RISK_FACT_CATEGORIES:
+
+        if keyword not in category_text:
+
+            continue
+
+        pattern = re.compile(
+            rf"{re.escape(keyword)}.{{0,30}}("
+            + "|".join(
+                re.escape(
+                    phrase
+                )
+                for phrase in SOURCE_UNCERTAIN_PHRASES
+            )
+            + ")"
+        )
+
+        if pattern.search(
+            material_text
+        ):
+
+            return True
+
+    return False
+
+
+def _find_ungrounded_fact_reason(fact, material):
+
+    if not isinstance(
+        fact,
+        dict
+    ):
+
+        return "fact is not a dict"
+
+    material_norm = _normalize_grounding_text(
+        material
+    )
+
+    content = str(
+        fact.get(
+            "content",
+            ""
+        )
+    )
+
+    category = str(
+        fact.get(
+            "category",
+            ""
+        )
+    )
+
+    trim = str(
+        fact.get(
+            "trim",
+            ""
+        )
+    )
+
+    material_text = str(
+        material or ""
+    )
+
+    if "座椅" in content and "通风" in content:
+
+        if not re.search(
+            r"座椅.{0,12}通风|通风.{0,12}座椅",
+            material_text
+        ):
+
+            return "seat ventilation is not grounded in material"
+
+    if "后排座椅" in content and "加热" in content:
+
+        if not re.search(
+            r"后排座椅.{0,12}加热|加热.{0,12}后排座椅",
+            material_text
+        ):
+
+            return "rear seat heating is not grounded in material"
+
+    if "后排独立空调" in content:
+
+        if "后排独立空调" not in material_text:
+
+            return "rear independent air conditioning is not grounded in material"
+
+    if any(
+        keyword in content
+        for keyword in [
+            "手机互联",
+            "车机",
+            "HiCar",
+            "Carlink",
+            "CarPlay",
+            "Android Auto",
+        ]
+    ):
+
+        has_cn_ecosystem = any(
+            keyword in content
+            for keyword in [
+                "HUAWEI HiCar",
+                "ICCOA Carlink",
+            ]
+        )
+
+        has_foreign_ecosystem = any(
+            keyword in content
+            for keyword in [
+                "CarPlay",
+                "Android Auto",
+            ]
+        )
+
+        if has_cn_ecosystem and has_foreign_ecosystem:
+
+            return "mixed mobile interconnect systems require source confirmation"
+
+    should_check_numbers = any(
+        keyword in f"{category} {content}"
+        for keyword in [
+            "价格",
+            "售价",
+            "后备箱",
+            "空间",
+            "尺寸",
+            "轴距",
+            "金融",
+            "权益",
+            "活动",
+            "质保",
+            "保养",
+        ]
+    )
+
+    if should_check_numbers:
+
+        number_text = content
+
+        if "版本" in category or "差异" in category:
+
+            number_text = f"{trim} {content}"
+
+        for token in _extract_numeric_tokens(
+            number_text
+        ):
+
+            if token not in material_norm:
+
+                return f"numeric token not found in material: {token}"
+
+    for term in PROTECTED_SOURCE_TERMS:
+
+        if term.lower() not in content.lower():
+
+            continue
+
+        if _normalize_grounding_text(
+            term
+        ) not in material_norm:
+
+            return f"protected term not found in material: {term}"
+
+    if (
+        any(
+            version in f"{trim} {content}"
+            for version in [
+                "豪华版",
+                "尊贵版",
+            ]
+        )
+        and (
+            "版本" in category
+            or "差异" in category
+            or "豪华版" in content
+            or "尊贵版" in content
+        )
+        and not all(
+            version in str(
+                material or ""
+            )
+            for version in [
+                "豪华版",
+                "尊贵版",
+            ]
+        )
+    ):
+
+        return "trim versions not found in material"
+
+    if _has_source_uncertainty_near_topic(
+        material,
+        fact
+    ):
+
+        return "material marks this high-risk topic as uncertain"
+
+    return ""
+
+
+def _renumber_facts(facts):
+
+    for index, fact in enumerate(
+        facts,
+        start=1
+    ):
+
+        if isinstance(
+            fact,
+            dict
+        ):
+
+            fact[
+                "fact_id"
+            ] = f"F{index:03d}"
+
+
+def apply_material_grounding_guard(data, material):
+
+    if not isinstance(
+        data,
+        dict
+    ):
+
+        return data
+
+    facts = data.get(
+        "facts",
+        []
+    )
+
+    if not isinstance(
+        facts,
+        list
+    ):
+
+        return data
+
+    kept = []
+
+    removed = []
+
+    for fact in facts:
+
+        reason = _find_ungrounded_fact_reason(
+            fact,
+            material
+        )
+
+        if reason:
+
+            removed.append(
+                {
+                    "fact": fact,
+                    "reason": reason
+                }
+            )
+
+            continue
+
+        kept.append(
+            fact
+        )
+
+    if not removed:
+
+        return data
+
+    data[
+        "facts"
+    ] = kept
+
+    _renumber_facts(
+        kept
+    )
+
+    info_gaps = data.setdefault(
+        "info_gaps",
+        []
+    )
+
+    for index, item in enumerate(
+        removed,
+        start=len(
+            info_gaps
+        ) + 1
+    ):
+
+        fact = item[
+            "fact"
+        ]
+
+        info_gaps.append(
+            {
+                "gap_id": f"G{index:03d}",
+                "gap_type": "业务规则缺失",
+                "missing_content": (
+                    "疑似缺少原始资料支撑的事实已被阻断："
+                    + str(
+                        fact.get(
+                            "content",
+                            ""
+                        )
+                    )
+                ),
+                "impact_module": fact.get(
+                    "category",
+                    ""
+                ),
+                "impact_level": "高",
+                "description": item[
+                    "reason"
+                ]
+            }
+        )
+
+    data[
+        "material_grounding_removed"
+    ] = len(
+        removed
+    )
+
+    data[
+        "material_grounding_removed_items"
+    ] = [
+        {
+            "fact_id": item["fact"].get(
+                "fact_id",
+                ""
+            ),
+            "category": item["fact"].get(
+                "category",
+                ""
+            ),
+            "content": item["fact"].get(
+                "content",
+                ""
+            ),
+            "reason": item[
+                "reason"
+            ]
+        }
+        for item in removed
+    ]
+
+    return data
+
+
 def _read_fact_prompt():
     with open(
         "prompts/step1_prompt.txt",
@@ -491,8 +943,13 @@ def _extract_facts_single(material):
         from utils.json_parser import parse_json
         data = parse_json(result)
 
-        return normalize_fact_knowledge_type(
+        data = normalize_fact_knowledge_type(
             data
+        )
+
+        return apply_material_grounding_guard(
+            data,
+            material
         )
 
 
