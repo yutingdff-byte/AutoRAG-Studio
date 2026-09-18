@@ -18,6 +18,9 @@ IMAGE_EXTENSIONS = {
 
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 
+PREPROCESS_QUALITY_STEPS = (95, 90, 85, 80, 75, 70)
+PREPROCESS_MAX_SIDE_STEPS = (6000, 5000, 4096, 3500, 3000, 2500, 2000, 1600, 1200, 1000, 800)
+
 
 IMAGE_PARSE_PROMPT = """
 你是汽车业务资料解析助手。
@@ -123,20 +126,12 @@ def _read_image_bytes(file_path):
     )
 
 
-def _validate_image_bytes(image_bytes, source_name):
+def _open_image_copy(image_bytes, source_name):
 
     if not image_bytes:
 
         raise ValueError(
             f"图片解析失败：{source_name} 内容为空"
-        )
-
-    if len(
-        image_bytes
-    ) > MAX_IMAGE_SIZE_BYTES:
-
-        raise ValueError(
-            f"图片超过MVP限制：{source_name} 大于10MB"
         )
 
     try:
@@ -147,7 +142,8 @@ def _validate_image_bytes(image_bytes, source_name):
             )
         ) as image:
 
-            image.verify()
+            image.load()
+            return image.copy()
 
     except UnidentifiedImageError as exc:
 
@@ -160,6 +156,93 @@ def _validate_image_bytes(image_bytes, source_name):
         raise ValueError(
             f"图片校验失败：{source_name}，错误原因：{exc}"
         ) from exc
+
+
+def _save_jpeg(image, quality: int) -> bytes:
+    output = BytesIO()
+    image.save(
+        output,
+        format="JPEG",
+        quality=quality,
+        optimize=True,
+        progressive=True,
+    )
+    return output.getvalue()
+
+
+def _to_rgb(image):
+    if image.mode in {"RGB", "L"}:
+        return image.convert("RGB")
+
+    background = Image.new(
+        "RGB",
+        image.size,
+        (255, 255, 255),
+    )
+
+    if image.mode in {"RGBA", "LA"}:
+        alpha = image.convert("RGBA").split()[-1]
+        background.paste(
+            image.convert("RGBA"),
+            mask=alpha,
+        )
+        return background
+
+    return image.convert("RGB")
+
+
+def _resize_to_max_side(image, max_side: int):
+    width, height = image.size
+    longest = max(width, height)
+    if longest <= max_side:
+        return image.copy()
+
+    ratio = max_side / longest
+    new_size = (
+        max(1, int(width * ratio)),
+        max(1, int(height * ratio)),
+    )
+    return image.resize(
+        new_size,
+        Image.Resampling.LANCZOS,
+    )
+
+
+def _prepare_image_bytes_for_model(image_bytes, source_name):
+    image = _open_image_copy(
+        image_bytes,
+        source_name,
+    )
+
+    if len(image_bytes) <= MAX_IMAGE_SIZE_BYTES:
+        return image_bytes, None
+
+    rgb_image = _to_rgb(image)
+
+    for quality in PREPROCESS_QUALITY_STEPS:
+        compressed = _save_jpeg(
+            rgb_image,
+            quality,
+        )
+        if len(compressed) <= MAX_IMAGE_SIZE_BYTES:
+            return compressed, "image/jpeg"
+
+    for max_side in PREPROCESS_MAX_SIDE_STEPS:
+        resized = _resize_to_max_side(
+            rgb_image,
+            max_side,
+        )
+        for quality in PREPROCESS_QUALITY_STEPS:
+            compressed = _save_jpeg(
+                resized,
+                quality,
+            )
+            if len(compressed) <= MAX_IMAGE_SIZE_BYTES:
+                return compressed, "image/jpeg"
+
+    raise ValueError(
+        f"图片超过MVP限制：{source_name} 预处理后仍大于10MB"
+    )
 
 
 def _validate_qwen_config():
@@ -177,9 +260,9 @@ def _validate_qwen_config():
     return api_key, base_url
 
 
-def _build_data_url(source_name, image_bytes):
+def _build_data_url(source_name, image_bytes, mime_type=None):
 
-    mime_type = mimetypes.guess_type(
+    mime_type = mime_type or mimetypes.guess_type(
         source_name
     )[0]
 
@@ -234,7 +317,7 @@ def parse_image(file_path: str) -> str:
         file_path
     )
 
-    _validate_image_bytes(
+    prepared_bytes, prepared_mime_type = _prepare_image_bytes_for_model(
         image_bytes,
         source_name
     )
@@ -258,7 +341,8 @@ def parse_image(file_path: str) -> str:
 
     data_url = _build_data_url(
         source_name,
-        image_bytes
+        prepared_bytes,
+        prepared_mime_type,
     )
 
     response = client.chat.completions.create(

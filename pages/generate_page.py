@@ -900,7 +900,8 @@ SUPPORTED_UPLOAD_TYPES = [
     "png",
     "jpg",
     "jpeg",
-    "webp"
+    "webp",
+    "zip"
 ]
 
 
@@ -1065,18 +1066,18 @@ def render_generate_page() -> None:
 
 
     uploaded_files = st.file_uploader(
-        "上传汽车资料（支持 Excel、Word、PDF、TXT 及图片资料）",
+        "上传汽车资料（支持 Excel、Word、PDF、TXT、图片及ZIP图片资料）",
         type=SUPPORTED_UPLOAD_TYPES,
         accept_multiple_files=True,
         key="generate_uploaded_files",
     )
 
     st.caption(
-        "图片可用于识别活动海报、价格截图、配置截图、PPT页面截图、朋友圈营销长图和产品卖点图片。"
+        "图片和ZIP图片资料可用于识别活动海报、价格截图、配置截图、PPT页面截图、朋友圈营销长图和产品卖点图片。"
     )
 
     st.caption(
-        f"单次最多 {MAX_UPLOAD_FILE_COUNT} 个文件；单张图片最大 10MB。"
+        f"单次最多 {MAX_UPLOAD_FILE_COUNT} 个文件；大图片会自动进行安全预处理。"
     )
 
 

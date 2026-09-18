@@ -5,6 +5,7 @@ from parser.docx_parser import parse_docx
 from parser.excel_parser import parse_excel
 from parser.image_parser import IMAGE_EXTENSIONS, parse_image
 from parser.pdf_parser import parse_pdf
+from parser.zip_image_parser import ZIP_EXTENSIONS, parse_zip_images
 
 
 
@@ -101,6 +102,15 @@ def parse_file(file):
 
 
             return parse_image(
+                file
+            )
+
+        elif os.path.splitext(
+            filename_lower
+        )[1] in ZIP_EXTENSIONS:
+
+
+            return parse_zip_images(
                 file
             )
 
