@@ -517,7 +517,7 @@ def _extract_numeric_tokens(value):
     tokens = []
 
     for match in re.finditer(
-        r"(?<![A-Za-z])\d+(?:\.\d+)?(?![A-Za-z])",
+        r"\d+(?:\.\d+)?",
         str(
             value or ""
         )
@@ -697,6 +697,11 @@ def _find_ungrounded_fact_reason(fact, material):
             "活动",
             "质保",
             "保养",
+            "动力",
+            "发动机",
+            "变速箱",
+            "功率",
+            "扭矩",
         ]
     )
 

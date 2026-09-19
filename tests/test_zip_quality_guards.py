@@ -119,6 +119,86 @@ def test_material_grounding_blocks_mixed_mobile_interconnect_systems():
     assert "mobile interconnect" in guarded["material_grounding_removed_items"][0]["reason"]
 
 
+def test_material_grounding_blocks_unsupported_powertrain_number():
+    material = """
+    1.5T高效率发动机
+    最大功率135kW
+    最大扭矩275N·m
+    第二代7DCT湿式双离合变速箱
+    综合效率96%，减重5.7kg，换挡平顺更省油
+    """
+    data = {
+        "facts": [
+            {
+                "fact_id": "F001",
+                "category": "动力信息",
+                "content": "发动机最大功率135kW，最大扭矩275N·m",
+            },
+            {
+                "fact_id": "F002",
+                "category": "动力信息",
+                "content": "第二代7DCT变速箱最大扭矩容量为300N·m",
+            },
+        ],
+        "info_gaps": [],
+    }
+
+    guarded = apply_material_grounding_guard(data, material)
+
+    assert [fact["content"] for fact in guarded["facts"]] == [
+        "发动机最大功率135kW，最大扭矩275N·m"
+    ]
+    assert guarded["material_grounding_removed"] == 1
+    assert "300" in guarded["material_grounding_removed_items"][0]["reason"]
+
+
+def test_material_grounding_blocks_mixed_powertrain_fact_with_unsupported_number():
+    material = """
+    1.5T高效率发动机
+    最大功率135kW
+    最大扭矩275N·m
+    第二代7DCT湿式双离合变速箱
+    """
+    data = {
+        "facts": [
+            {
+                "fact_id": "F001",
+                "category": "动力信息",
+                "content": "发动机最大功率135kW，最大扭矩275N·m，变速箱最大扭矩容量为300N·m",
+            }
+        ],
+        "info_gaps": [],
+    }
+
+    guarded = apply_material_grounding_guard(data, material)
+
+    assert guarded["facts"] == []
+    assert guarded["material_grounding_removed"] == 1
+    assert "300" in guarded["material_grounding_removed_items"][0]["reason"]
+
+
+def test_material_grounding_allows_explicit_transmission_torque_capacity():
+    material = """
+    第二代7DCT湿式双离合变速箱
+    变速箱最大扭矩容量300N·m
+    """
+    data = {
+        "facts": [
+            {
+                "fact_id": "F001",
+                "category": "动力信息",
+                "content": "第二代7DCT变速箱最大扭矩容量为300N·m",
+            }
+        ],
+        "info_gaps": [],
+    }
+
+    guarded = apply_material_grounding_guard(data, material)
+
+    assert guarded["facts"] == data["facts"]
+    assert "material_grounding_removed" not in guarded
+
+
 def test_material_grounding_blocks_high_risk_uncertain_finance_and_aftersales():
     material = """
     金融政策：【图片内容无法确认】
