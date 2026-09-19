@@ -970,6 +970,51 @@ def parse_price_number(text):
     return None
 
 
+def parse_price_numbers(text):
+
+    values = []
+
+    for match in re.finditer(
+        r"(\d+(?:\.\d+)?)\s*万",
+        str(
+            text or ""
+        )
+    ):
+
+        value = float(
+            match.group(
+                1
+            )
+        )
+
+        if value not in values:
+
+            values.append(
+                value
+            )
+
+    for match in re.finditer(
+        r"(\d{5,6})\s*元",
+        str(
+            text or ""
+        )
+    ):
+
+        value = int(
+            match.group(
+                1
+            )
+        ) / 10000
+
+        if value not in values:
+
+            values.append(
+                value
+            )
+
+    return values
+
+
 def format_price(value):
 
     text = f"{value:.2f}".rstrip("0").rstrip(".")
@@ -1010,12 +1055,14 @@ def has_model_price_overview(rag_items, model):
             continue
 
         if item.get(
+            "exportable"
+        ) is False:
+
+            continue
+
+        if item.get(
             "trim"
-        ) not in [
-            "全系",
-            "不同版本",
-            ""
-        ]:
+        ) != "全系":
 
             continue
 
@@ -1067,6 +1114,196 @@ def collect_price_facts(facts):
             )
 
     return price_facts_by_model
+
+
+def build_price_fact_stats(price_facts):
+
+    values = []
+
+    fact_ids_by_price = defaultdict(list)
+
+    for fact in price_facts:
+
+        fact_values = parse_price_numbers(
+            fact.get(
+                "content",
+                ""
+            )
+        )
+
+        if not fact_values:
+
+            value = parse_price_number(
+                fact.get(
+                    "content",
+                    ""
+                )
+            )
+
+            fact_values = [
+                value
+            ] if value is not None else []
+
+        for value in fact_values:
+
+            if value not in values:
+
+                values.append(
+                    value
+                )
+
+            fact_id = fact.get(
+                "fact_id",
+                ""
+            )
+
+            if fact_id:
+
+                fact_ids_by_price[
+                    value
+                ].append(
+                    fact_id
+                )
+
+    return values, fact_ids_by_price
+
+
+def guard_incomplete_model_price_overviews(final_result, facts):
+
+    rag_items = final_result.get(
+        "rag_knowledge",
+        []
+    )
+
+    price_facts_by_model = collect_price_facts(
+        facts
+    )
+
+    for model, price_facts in price_facts_by_model.items():
+
+        values, fact_ids_by_price = build_price_fact_stats(
+            price_facts
+        )
+
+        if len(
+            values
+        ) < 2:
+
+            continue
+
+        low = min(
+            values
+        )
+
+        high = max(
+            values
+        )
+
+        required_fact_ids = set(
+            fact_ids_by_price.get(
+                low,
+                []
+            )
+            + fact_ids_by_price.get(
+                high,
+                []
+            )
+        )
+
+        for item in rag_items:
+
+            if not isinstance(
+                item,
+                dict
+            ):
+
+                continue
+
+            if item.get(
+                "model"
+            ) != model:
+
+                continue
+
+            if item.get(
+                "trim"
+            ) != "全系":
+
+                continue
+
+            if not is_price_rag(
+                item
+            ):
+
+                continue
+
+            answer_prices = parse_price_numbers(
+                item.get(
+                    "answer",
+                    ""
+                )
+            )
+
+            refs = item.get(
+                "fact_refs",
+                []
+            )
+
+            if not isinstance(
+                refs,
+                list
+            ):
+
+                refs = [
+                    refs
+                ]
+
+            ref_set = {
+                str(
+                    ref
+                )
+                for ref in refs
+                if ref
+            }
+
+            has_endpoint_prices = (
+                low in answer_prices
+                and high in answer_prices
+            )
+
+            has_endpoint_refs = (
+                not required_fact_ids
+                or required_fact_ids.issubset(
+                    ref_set
+                )
+            )
+
+            if has_endpoint_prices and has_endpoint_refs:
+
+                continue
+
+            rag_quality.mark_non_exportable(
+                item,
+                (
+                    "全系价格范围未覆盖同车型全部已知价格端点，"
+                    f"应覆盖{format_price(low)}-{format_price(high)}"
+                ),
+                "scope_conflict"
+            )
+
+            item[
+                "trim"
+            ] = "需确认"
+
+            item[
+                "confidence"
+            ] = "低"
+
+    final_result[
+        "rag_knowledge"
+    ] = rag_items
+
+    return final_result
 
 
 def build_model_price_answer(price_facts):
@@ -1903,6 +2140,11 @@ def generate_rag(facts):
             "rag_knowledge",
             []
         )
+    )
+
+    final_result = guard_incomplete_model_price_overviews(
+        final_result,
+        facts
     )
 
 
