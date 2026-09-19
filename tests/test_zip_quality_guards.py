@@ -52,6 +52,32 @@ def test_material_grounding_blocks_unseen_versions_and_wrong_cargo_numbers():
     assert guarded["material_grounding_removed"] == 2
 
 
+def test_material_grounding_blocks_cargo_number_when_source_is_uncertain():
+    material = """
+    哈弗H6经典版2026款
+    后备箱容积：【图片内容无法确认】（未明确给出具体数值）
+    """
+    data = {
+        "facts": [
+            {
+                "fact_id": "F001",
+                "brand": "长城汽车",
+                "model": "哈弗H6经典版",
+                "trim": "2026款",
+                "category": "空间信息",
+                "content": "行李箱空间为470升（后排座椅未放倒）",
+            }
+        ],
+        "info_gaps": [],
+    }
+
+    guarded = apply_material_grounding_guard(data, material)
+
+    assert guarded["facts"] == []
+    assert guarded["material_grounding_removed"] == 1
+    assert "470" in guarded["material_grounding_removed_items"][0]["reason"]
+
+
 def test_material_grounding_blocks_unsupported_connectivity_and_comfort_config():
     material = """
     HUAWEI HiCar
