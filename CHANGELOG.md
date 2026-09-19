@@ -1,5 +1,46 @@
 # AutoRAG-Studio Changelog
 
+## ZIP Image Import MVP - Small ZIP Release Candidate
+
+Date: 2026-09-19
+
+Status: Release closeout in progress
+
+### Added
+
+- Added ZIP image material import MVP for small automotive image资料 packages.
+- Added support for one-level inner ZIP image extraction.
+- Added image group isolation so folders inside ZIP can map to separate vehicle material groups.
+- Added large-image preprocessing path for oversized image inputs.
+- Added source/material retention for ZIP image Generate runs.
+
+### Fixed
+
+- Blocked unsupported full-series price overviews when only one source price is available.
+- Blocked source-unclear deterministic configuration claims from formal Excel export.
+- Preserved previous guards for unsupported finance, warranty, maintenance, cargo, phone interconnect, and powertrain parameter hallucinations.
+
+### Validated
+
+- Latest local small-ZIP source run: `20260919_145648`.
+- Prior output before final release gate: 25 formal Excel rows.
+- TASK13.11 owner acceptance: 12 PASS, 0 FAIL, 13 REVIEW_REQUIRED.
+- Final release-gate export after safety filtering:
+  - Vehicle configuration Excel: 14 rows
+  - Price/policy Excel: 7 rows
+  - Total: 21 rows
+  - Confirmed high-risk formal-export issues remaining: 0
+- No new Qwen or DeepSeek generation was run for the release-gate filtering; validation reused existing run artifacts and regenerated Excel offline.
+
+### Known Backlog
+
+- Full 195 MB customer ZIP has not been validated.
+- Cloud small-ZIP validation is pending until deployment.
+- Trunk/cargo capacity `560L-1485L` is still a coverage gap.
+- ICCOA Carlink is still a coverage gap.
+- Low-risk subjective expression cleanup remains for otherwise grounded knowledge.
+- Full image key-fact coverage evaluation is still needed before claiming broad ZIP production readiness.
+
 ## V0.8.2 - Complex Excel Reliability Upgrade
 
 Date: 2026-08-15

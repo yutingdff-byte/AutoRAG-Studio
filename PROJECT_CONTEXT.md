@@ -23,8 +23,64 @@ https://autorag-studio.streamlit.app/
 Current phase:
 
 ```text
-Real User Feedback & Badcase Collection
+ZIP Image Import MVP Release Closeout
 ```
+
+## ZIP Image Import MVP Status
+
+TASK13 adds small ZIP image资料 ingestion for automotive source images.
+
+Validated local sample:
+
+```text
+Sample: output/task13_3_zip_gate_c/gate_c_two_groups.zip
+Groups: 2
+Images: 3
+Latest source Run ID: 20260919_145648
+```
+
+Supported in the MVP scope:
+
+- Outer ZIP image extraction.
+- One-level inner ZIP image extraction.
+- Folder/group isolation for vehicle material groups.
+- Large image preprocessing path.
+- Existing Generate chain reuse:
+
+```text
+ZIP images
+-> Vision Material
+-> Facts
+-> RAG
+-> QC
+-> Dual Excel Export
+```
+
+Release-gate policy:
+
+```text
+Correct facts may be omitted in the MVP.
+Unsupported deterministic facts must not enter formal Excel.
+```
+
+Latest safety-filtered small-ZIP export:
+
+```text
+Vehicle configuration Excel: 14 rows
+Price/policy Excel: 7 rows
+Total: 21 rows
+Confirmed high-risk formal-export issues: 0
+```
+
+Known ZIP MVP limits:
+
+- Full customer ZIP around 195 MB is not validated.
+- Cloud small-ZIP E2E is pending deployment validation.
+- Trunk/cargo capacity `560L-1485L` remains a coverage gap.
+- ICCOA Carlink remains a coverage gap.
+- Subjective expression cleanup and key-fact coverage evaluation remain backlog.
+
+Do not claim full customer ZIP production readiness until scale, resource, cost, and knowledge-quality validation are complete.
 
 ## Product Goal
 

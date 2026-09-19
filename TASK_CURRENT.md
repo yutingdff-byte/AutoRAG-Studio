@@ -4,7 +4,50 @@ Version: V0.8.2
 
 Status: Ready for Internal Trial
 
-Last Update: 2026-08-23
+Last Update: 2026-09-19
+
+## Current Active Task
+
+```text
+TASK13.12
+ZIP MVP Release Closeout and Cloud Deployment
+```
+
+Current release candidate:
+
+```text
+Branch: task13.1-zip-image-import
+Latest source ZIP Run ID: 20260919_145648
+```
+
+Current objective:
+
+```text
+Ship a safe, trialable small-ZIP image import MVP.
+```
+
+Release policy:
+
+```text
+Correct knowledge may be omitted during the MVP.
+Unsupported deterministic knowledge must not enter formal Excel.
+```
+
+Latest release-gate local export:
+
+```text
+Vehicle configuration Excel: 14 rows
+Price/policy Excel: 7 rows
+Total: 21 rows
+Confirmed high-risk formal-export issues: 0
+```
+
+Still pending:
+
+- Merge/push after release gate.
+- Streamlit Cloud deploy confirmation.
+- Cloud small-ZIP E2E validation.
+- Full 195 MB ZIP scale validation, separately scoped.
 
 ## Current Stable Release
 

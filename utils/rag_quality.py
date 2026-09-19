@@ -36,6 +36,24 @@ MISSING_HINT_PHRASES = [
     "参考后续官方信息"
 ]
 
+UNSUPPORTED_SINGLE_PRICE_OVERVIEW_PHRASES = [
+    "不同版本价格会有差异",
+    "不同版本价格会有差别",
+    "不同配置价格会有差异",
+    "不同配置价格会有差别",
+]
+
+SOURCE_UNCLEAR_EXPORT_PATTERNS = [
+    r"高级皮质.{0,8}座椅",
+    r"后排座椅.{0,12}前后滑动",
+    r"放置大件物品",
+    r"L2级智能驾驶辅助功能.{0,60}全景影像系统",
+    r"日常行驶和停车会更省心",
+    r"12\.3英寸高清触控屏",
+    r"全场景语音交互",
+    r"日常导航、听歌",
+]
+
 
 HIGH_RISK_CONFIRM_TOPICS = [
     "金融",
@@ -279,6 +297,56 @@ def is_high_risk_unconfirmed_item(item):
     )
 
 
+def is_unsupported_single_price_overview(item):
+
+    if normalize_topic(
+        item
+    ) != "价格":
+
+        return False
+
+    if str(
+        item.get(
+            "trim",
+            ""
+        )
+    ).strip() != "全系":
+
+        return False
+
+    text = get_item_text(
+        item
+    )
+
+    if len(
+        extract_price_values(
+            text
+        )
+    ) != 1:
+
+        return False
+
+    return any(
+        phrase in text
+        for phrase in UNSUPPORTED_SINGLE_PRICE_OVERVIEW_PHRASES
+    )
+
+
+def has_source_unclear_export_risk(item):
+
+    text = get_item_text(
+        item
+    )
+
+    return any(
+        re.search(
+            pattern,
+            text
+        )
+        for pattern in SOURCE_UNCLEAR_EXPORT_PATTERNS
+    )
+
+
 def is_exportable_rag(item):
 
     if not isinstance(
@@ -325,6 +393,18 @@ def is_exportable_rag(item):
         return False
 
     if is_high_risk_unconfirmed_item(
+        item
+    ):
+
+        return False
+
+    if is_unsupported_single_price_overview(
+        item
+    ):
+
+        return False
+
+    if has_source_unclear_export_risk(
         item
     ):
 

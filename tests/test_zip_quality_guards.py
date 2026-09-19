@@ -276,6 +276,84 @@ def test_high_risk_unconfirmed_rag_is_not_exportable():
     assert is_exportable_rag(brand)
 
 
+def test_unsupported_single_price_full_series_overview_is_not_exportable():
+    item = {
+        "model": "测试车型",
+        "trim": "全系",
+        "category": "价格信息",
+        "questions": ["测试车型多少钱？"],
+        "answer": "这款车目前资料中的价格信息为9.99万元，不同版本价格会有差异，具体成交价格以门店实际报价为准。",
+        "answer_type": "fact_answer",
+        "review_type": "dynamic_notice",
+    }
+
+    assert not is_exportable_rag(item)
+
+
+def test_single_version_price_remains_exportable():
+    item = {
+        "model": "测试车型",
+        "trim": "2026款",
+        "category": "价格信息",
+        "questions": ["测试车型2026款多少钱？"],
+        "answer": "测试车型2026款建议零售价为9.99万元。",
+        "answer_type": "fact_answer",
+        "review_type": "dynamic_notice",
+    }
+
+    assert is_exportable_rag(item)
+
+
+def test_complete_full_series_price_range_remains_exportable():
+    item = {
+        "model": "测试车型",
+        "trim": "全系",
+        "category": "价格信息",
+        "questions": ["测试车型价格区间是多少？"],
+        "answer": "测试车型全系建议零售价区间为11.79万元-14.39万元。",
+        "answer_type": "fact_answer",
+        "review_type": "dynamic_notice",
+    }
+
+    assert is_exportable_rag(item)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "座椅是高级皮质材质，后排座椅还可以前后滑动，放置大件物品会更灵活。",
+        "配备L2级智能驾驶辅助功能，包含自适应巡航和全景影像系统，日常行驶和停车会更省心。",
+        "车内配备12.3英寸高清触控屏，语音控制支持全场景语音交互，日常导航、听歌这些操作会比较方便。",
+    ],
+)
+def test_source_unclear_high_risk_config_is_not_exportable(answer):
+    item = {
+        "model": "测试车型",
+        "trim": "2026款",
+        "category": "配置信息",
+        "questions": ["配置怎么样？"],
+        "answer": answer,
+        "answer_type": "fact_answer",
+        "review_type": "无",
+    }
+
+    assert not is_exportable_rag(item)
+
+
+def test_grounded_basic_parameter_remains_exportable():
+    item = {
+        "model": "测试车型",
+        "trim": "2026款",
+        "category": "配置信息",
+        "questions": ["轴距是多少？"],
+        "answer": "测试车型轴距为2738毫米。",
+        "answer_type": "fact_answer",
+        "review_type": "无",
+    }
+
+    assert is_exportable_rag(item)
+
+
 def test_run_pipeline_saves_material(monkeypatch, tmp_path):
     output_dir = tmp_path / "output" / "RUN"
     output_dir.mkdir(parents=True)

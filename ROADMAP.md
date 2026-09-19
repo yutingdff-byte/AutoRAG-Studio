@@ -239,6 +239,75 @@ Tag: `v0.8.2`
 
 ## Next Planned Work
 
+### ZIP Image Import MVP
+
+Status: Release closeout
+
+Scope validated locally:
+
+- Small ZIP image import.
+- One-level inner ZIP image extraction.
+- Folder/group isolation for two vehicle资料 groups.
+- Large image preprocessing path.
+- Generate pipeline through Material, Facts, RAG, QC, and dual Excel export.
+- Safety filtering for unsupported deterministic image-derived knowledge.
+
+Release-gate output:
+
+```text
+Sample: gate_c_two_groups.zip
+Latest source Run ID: 20260919_145648
+Formal Excel after safety gate: 21 rows
+Confirmed high-risk formal-export issues: 0
+```
+
+Not yet validated:
+
+- Full original ZIP around 195 MB.
+- 15 groups / 24 images / 9 inner ZIP files.
+- Cloud upload size, runtime, memory, temp storage, cost, and full knowledge quality.
+- Broad key-fact coverage across all customer images.
+
+#### P1: Image Key Fact Coverage
+
+- Improve extraction of clear source facts such as trunk/cargo capacity `560L-1485L`.
+- Preserve current safety principle: omissions are acceptable during MVP, unsupported deterministic exports are not.
+
+#### P1: Image Table and Parameter Binding
+
+- Reduce numeric misreads.
+- Reduce adjacent table parameter contamination.
+- Reduce engine/transmission parameter binding errors.
+- Reduce vehicle/version scope errors.
+- Reduce incomplete full-series price ranges.
+
+#### P1: Full ZIP Scale and Reliability
+
+- Validate the original 195 MB customer ZIP separately.
+- Measure upload limits, runtime, memory, temp storage, model calls, cost, cross-group isolation, and final knowledge quality.
+
+#### P2: ICCOA Carlink Coverage
+
+- Trace Image -> Material -> Facts -> RAG -> QC -> Excel.
+- Determine whether the missing knowledge is a Material, Facts, RAG, or export issue.
+
+#### P2: Deduplication and Expression Quality
+
+- Reduce low-value repeated price questions.
+- Reduce unsupported subjective driving, comfort, and marketing statements.
+
+#### P2: Knowledge Coverage Evaluation
+
+- Build a fixed image test set and key-fact checklist.
+- Track wrong exports, correct knowledge retention, key fact omissions, and vehicle/version/parameter binding separately.
+
+#### P2: Review and Traceability UX
+
+- Improve source image lookup.
+- Improve Material/Facts/RAG traceability.
+- Show filtered knowledge and filter reasons.
+- Improve manual confirmation workflow.
+
 ### Internal Trial
 
 Status: Next
