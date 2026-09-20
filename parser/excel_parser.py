@@ -8,6 +8,7 @@ from typing import Any, BinaryIO
 from openpyxl import load_workbook
 from openpyxl.cell.cell import MergedCell
 from openpyxl.worksheet.worksheet import Worksheet
+import xlrd
 
 
 SUPPORTED_EXTENSIONS = {
@@ -15,6 +16,10 @@ SUPPORTED_EXTENSIONS = {
     ".xlsm",
     ".xltx",
     ".xltm",
+}
+
+XLRD_EXTENSIONS = {
+    ".xls",
 }
 
 ROW_ORIENTED_TABLE = "ROW_ORIENTED_TABLE"
@@ -127,7 +132,7 @@ def _prepare_source(file_path: Any) -> Any:
 
 def _validate_extension(file_path: Any) -> None:
     """
-    当能够识别扩展名时，检查是否为openpyxl支持的Excel格式。
+    当能够识别扩展名时，检查是否为支持的Excel格式。
     """
 
     name = getattr(file_path, "name", None)
@@ -140,11 +145,23 @@ def _validate_extension(file_path: Any) -> None:
 
     suffix = Path(str(name)).suffix.lower()
 
-    if suffix and suffix not in SUPPORTED_EXTENSIONS:
+    if suffix and suffix not in SUPPORTED_EXTENSIONS and suffix not in XLRD_EXTENSIONS:
         raise ValueError(
             f"暂不支持该Excel格式：{suffix}。"
-            "请将文件另存为 .xlsx 后重新上传。"
+            "请将文件另存为 .xlsx 或上传标准 .xls 文件后重试。"
         )
+
+
+def _get_suffix(file_path: Any) -> str:
+    name = getattr(file_path, "name", None)
+
+    if name is None and isinstance(file_path, (str, Path)):
+        name = str(file_path)
+
+    if not name:
+        return ""
+
+    return Path(str(name)).suffix.lower()
 
 
 def _build_merged_value_map(ws: Worksheet) -> dict[str, Any]:
@@ -211,6 +228,59 @@ def _read_sheet_rows(ws: Worksheet) -> list[list[str]]:
             values.pop()
 
         # 整行为空则跳过
+        if not any(values):
+            continue
+
+        raw_rows.append(values)
+
+    return raw_rows
+
+
+def _clean_xlrd_cell(book: xlrd.book.Book, sheet: xlrd.sheet.Sheet, row_index: int, col_index: int) -> str:
+    cell = sheet.cell(row_index, col_index)
+    value = cell.value
+
+    if cell.ctype == xlrd.XL_CELL_EMPTY:
+        return ""
+
+    if cell.ctype == xlrd.XL_CELL_DATE:
+        try:
+            return _clean_text(
+                xlrd.xldate.xldate_as_datetime(
+                    value,
+                    book.datemode,
+                )
+            )
+        except Exception:
+            return _clean_text(value)
+
+    if cell.ctype == xlrd.XL_CELL_BOOLEAN:
+        return "是" if bool(value) else "否"
+
+    if cell.ctype == xlrd.XL_CELL_NUMBER:
+        return _clean_text(float(value))
+
+    return _clean_text(value)
+
+
+def _read_xls_sheet_rows(book: xlrd.book.Book, sheet: xlrd.sheet.Sheet) -> list[list[str]]:
+    raw_rows: list[list[str]] = []
+
+    for row_index in range(sheet.nrows):
+        values: list[str] = []
+        for col_index in range(sheet.ncols):
+            values.append(
+                _clean_xlrd_cell(
+                    book,
+                    sheet,
+                    row_index,
+                    col_index,
+                )
+            )
+
+        while values and not values[-1]:
+            values.pop()
+
         if not any(values):
             continue
 
@@ -752,6 +822,31 @@ def _format_unstructured_sheet(
     return output
 
 
+def _format_sheet_rows(rows: list[list[str]]) -> list[str]:
+    orientation = _detect_excel_orientation(
+        rows
+    )
+
+    if orientation == COLUMN_ORIENTED_VEHICLE_MATRIX:
+        return _format_column_oriented_vehicle_matrix(
+            rows
+        )
+
+    header_index = _detect_header_index(
+        rows
+    )
+
+    if header_index is not None:
+        return _format_structured_sheet(
+            rows,
+            header_index,
+        )
+
+    return _format_unstructured_sheet(
+        rows
+    )
+
+
 def parse_excel(
     file_path: str | Path | BinaryIO | bytes,
 ) -> str:
@@ -772,9 +867,67 @@ def parse_excel(
         file_path
     )
 
+    suffix = _get_suffix(
+        file_path
+    )
+
     source = _prepare_source(
         file_path
     )
+
+    if suffix in XLRD_EXTENSIONS:
+        try:
+            if isinstance(source, (str, Path)):
+                workbook = xlrd.open_workbook(
+                    filename=str(source),
+                )
+            else:
+                if hasattr(source, "seek"):
+                    source.seek(0)
+                data = source.read() if hasattr(source, "read") else source
+                workbook = xlrd.open_workbook(
+                    file_contents=bytes(data),
+                )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Excel解析失败：{source_name}；"
+                f"错误信息：{exc}"
+            ) from exc
+
+        output: list[str] = [
+            f"【文件来源：{source_name}】"
+        ]
+
+        parsed_sheet_count = 0
+
+        for sheet in workbook.sheets():
+            rows = _read_xls_sheet_rows(
+                workbook,
+                sheet,
+            )
+
+            if not rows:
+                continue
+
+            parsed_sheet_count += 1
+
+            output.append("")
+            output.append(
+                f"【Sheet:{sheet.name}】"
+            )
+            output.extend(
+                _format_sheet_rows(
+                    rows
+                )
+            )
+
+        if parsed_sheet_count == 0:
+            output.append("")
+            output.append(
+                "【提示】该Excel中未读取到有效内容。"
+            )
+
+        return "\n".join(output).strip()
 
     try:
         workbook = load_workbook(
@@ -809,30 +962,11 @@ def parse_excel(
             f"【Sheet:{ws.title}】"
         )
 
-        orientation = _detect_excel_orientation(
-            rows
+        output.extend(
+            _format_sheet_rows(
+                rows
+            )
         )
-
-        if orientation == COLUMN_ORIENTED_VEHICLE_MATRIX:
-            sheet_text = _format_column_oriented_vehicle_matrix(
-                rows
-            )
-        else:
-            header_index = _detect_header_index(
-                rows
-            )
-
-            if header_index is not None:
-                sheet_text = _format_structured_sheet(
-                    rows,
-                    header_index,
-                )
-            else:
-                sheet_text = _format_unstructured_sheet(
-                    rows
-                )
-
-        output.extend(sheet_text)
 
     workbook.close()
 

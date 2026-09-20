@@ -23,7 +23,39 @@ https://autorag-studio.streamlit.app/
 Current phase:
 
 ```text
-ZIP Image Import MVP Release Closeout
+TASK14 Excel Persistence and Recovery MVP
+```
+
+## Excel Persistence and Recovery Status
+
+TASK14 introduces a minimal recovery layer for completed Excel outputs.
+
+Implemented locally:
+
+- Generate and Update final Excel persistence through a shared task store.
+- Same-browser auto-recovery using a minimal browser-side recovery token.
+- Cross-browser recovery by manually entering the recovery code.
+- Download recovery without rerunning Parser, Facts, RAG, QC, Diff, Merge, or Export.
+
+Current default backend:
+
+```text
+TASK_STORE_LOCAL_DIR=output/task_store
+TASK_STORE_RETENTION_DAYS=7
+```
+
+Security boundary:
+
+- Recovery tokens are random and unguessable.
+- Manifests store token hashes, not plaintext tokens.
+- The MVP stores only final Excel files and minimal task metadata.
+- Uploaded source materials and model intermediate JSON are not persisted for recovery.
+
+Cloud limitation:
+
+```text
+Local filesystem storage is not a durable Streamlit Cloud backend.
+Cloud restart-safe recovery requires a private object-store backend and configured Secrets.
 ```
 
 ## ZIP Image Import MVP Status

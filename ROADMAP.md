@@ -19,6 +19,26 @@ AI outbound call
 -> human sales handoff
 ```
 
+## Active Reliability Track
+
+### TASK14 Excel Persistence and Recovery MVP
+
+Status: Local implementation completed; Cloud durable-storage validation pending
+
+Completed locally:
+
+- Persist completed Generate and Update Excel outputs through a shared task-store interface.
+- Recover downloads by random recovery code.
+- Attempt same-browser auto-recovery through a minimal browser-side token.
+- Keep recovery separate from knowledge generation and quality gates.
+
+Pending before claiming Cloud recovery:
+
+- Choose and configure a private object-store backend such as Cloudflare R2, AWS S3, or OSS.
+- Store task manifests and Excel files outside Streamlit Cloud local disk.
+- Validate recovery after Streamlit Cloud redeploy/restart.
+- Confirm retention cleanup through object-store lifecycle policy or an equivalent maintenance command.
+
 ## Completed Stable Baselines
 
 ### V0.6 Stable

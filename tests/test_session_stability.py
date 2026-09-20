@@ -137,6 +137,45 @@ def test_update_review_merge_export_survive_navigation_reruns():
     assert not app.exception
 
 
+def test_generate_and_update_exports_are_isolated_across_navigation():
+    old_item = _knowledge("OLD-001", "10万元起")
+    new_item = _knowledge("NEW-001", "9万元起")
+    diff_result = compare([old_item], [new_item])
+
+    app = AppTest.from_file("../app.py", default_timeout=60)
+    app.run(timeout=60)
+    app.session_state["generate_result"] = _generate_result()
+    app.session_state["generate_export_files"] = {
+        "static": {"file_name": "generate-config.xlsx", "data": b"generate-config"},
+        "dynamic": {"file_name": "generate-policy.xlsx", "data": b"generate-policy"},
+    }
+    app.session_state["update_restore_result"] = RestoreResult(items=[old_item])
+    app.session_state["update_new_knowledge"] = [new_item]
+    app.session_state["update_diff_result"] = diff_result
+    app.session_state["update_review_completed"] = True
+    app.session_state["update_merge_result"] = MergeResult(final_items=[new_item], updated_accepted=1)
+    app.session_state["update_export_files"] = {
+        "static": {"file_name": "update-config.xlsx", "data": b"update-config"},
+        "dynamic": {"file_name": "update-policy.xlsx", "data": b"update-policy"},
+    }
+
+    _radio_by_key(app, "navigation_mode").set_value("generate").run(timeout=60)
+    assert app.session_state["generate_export_files"]["static"]["data"] == b"generate-config"
+    assert app.session_state["update_export_files"]["static"]["data"] == b"update-config"
+
+    _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
+    assert app.session_state["update_export_files"]["dynamic"]["data"] == b"update-policy"
+    assert app.session_state["generate_export_files"]["dynamic"]["data"] == b"generate-policy"
+
+    _radio_by_key(app, "navigation_mode").set_value("home").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("generate").run(timeout=60)
+    _radio_by_key(app, "navigation_mode").set_value("update").run(timeout=60)
+
+    assert app.session_state["generate_export_files"]["static"]["file_name"] == "generate-config.xlsx"
+    assert app.session_state["update_export_files"]["static"]["file_name"] == "update-config.xlsx"
+    assert not app.exception
+
+
 def test_page_header_does_not_render_literal_html():
     app = AppTest.from_file("../app.py", default_timeout=60)
     app.run(timeout=60)

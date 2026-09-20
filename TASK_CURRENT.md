@@ -9,45 +9,42 @@ Last Update: 2026-09-19
 ## Current Active Task
 
 ```text
-TASK13.12
-ZIP MVP Release Closeout and Cloud Deployment
+TASK14
+Excel Persistence and Cross-session Recovery MVP
 ```
 
-Current release candidate:
+Current implementation status:
 
 ```text
-Branch: task13.1-zip-image-import
-Latest source ZIP Run ID: 20260919_145648
+Branch: main
+Local task-store backend: output/task_store
+Cloud durable backend: pending external object-store configuration
 ```
 
 Current objective:
 
 ```text
-Ship a safe, trialable small-ZIP image import MVP.
+Allow completed Generate and Update Excel files to be recovered without rerunning model pipelines.
 ```
 
-Release policy:
+Implemented locally:
 
 ```text
-Correct knowledge may be omitted during the MVP.
-Unsupported deterministic knowledge must not enter formal Excel.
-```
-
-Latest release-gate local export:
-
-```text
-Vehicle configuration Excel: 14 rows
-Price/policy Excel: 7 rows
-Total: 21 rows
-Confirmed high-risk formal-export issues: 0
+Same-browser recovery token bootstrap
+Manual recovery-code download
+Generate Excel persistence
+Update Excel persistence after temporary export
 ```
 
 Still pending:
 
-- Merge/push after release gate.
-- Streamlit Cloud deploy confirmation.
-- Cloud small-ZIP E2E validation.
-- Full 195 MB ZIP scale validation, separately scoped.
+```text
+Private object-store backend selection and Secrets configuration
+Streamlit Cloud restart/redeploy recovery validation
+Cloud retention cleanup validation
+```
+
+Do not claim Cloud restart-safe recovery until external storage is configured and tested.
 
 ## Current Stable Release
 

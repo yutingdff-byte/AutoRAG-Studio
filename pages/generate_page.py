@@ -6,7 +6,9 @@ import streamlit as st
 from main import run_pipeline
 from parser.image_parser import IMAGE_EXTENSIONS, get_vision_model_name
 from parser.parser_factory import parse_file
+from storage.task_store import TaskStoreError, persist_excel_files
 from ui.components import render_file_card, render_page_header, render_step_navigation
+from ui.task_recovery import render_persisted_task_notice
 from utils.rag_quality import is_exportable_rag, normalize_review_item
 
 
@@ -943,6 +945,30 @@ def _cache_export_files(excel_paths):
     return cached_files
 
 
+def _persist_generate_export_files() -> None:
+    export_files = st.session_state.get("generate_export_files", {})
+    if not export_files:
+        st.session_state.generate_persist_error = "没有可保存的 Excel 文件。"
+        return
+
+    task = st.session_state.get("generate_persisted_task") or {}
+    try:
+        persisted_task, token = persist_excel_files(
+            mode="generate",
+            excel_files=export_files,
+            app_version=os.getenv("AUTORAG_APP_VERSION", ""),
+            recovery_token=st.session_state.get("generate_recovery_token") or None,
+            existing_task_id=task.get("task_id") if isinstance(task, dict) else None,
+        )
+    except TaskStoreError as exc:
+        st.session_state.generate_persist_error = str(exc)
+        return
+
+    st.session_state.generate_persisted_task = persisted_task.to_public_dict()
+    st.session_state.generate_recovery_token = token
+    st.session_state.generate_persist_error = ""
+
+
 def get_uploaded_file_extension(file):
 
     return os.path.splitext(
@@ -1140,6 +1166,9 @@ def render_generate_page() -> None:
             st.session_state.generate_stage = "running"
             st.session_state.generate_result = None
             st.session_state.generate_export_files = {}
+            st.session_state.generate_persisted_task = None
+            st.session_state.generate_recovery_token = ""
+            st.session_state.generate_persist_error = ""
 
             st.divider()
 
@@ -1392,6 +1421,7 @@ def render_generate_page() -> None:
                     st.session_state.generate_export_files = _cache_export_files(
                         result.get("excel_paths", {})
                     )
+                    _persist_generate_export_files()
                     st.session_state.generate_stage = "completed"
 
                 except Exception as exc:
@@ -1891,6 +1921,23 @@ def render_generate_page() -> None:
                 )
 
                 export_files = st.session_state.get("generate_export_files", {})
+                persisted_task = st.session_state.get("generate_persisted_task")
+                recovery_token = st.session_state.get("generate_recovery_token", "")
+                persist_error = st.session_state.get("generate_persist_error", "")
+
+                if persisted_task and recovery_token:
+                    render_persisted_task_notice(
+                        persisted_task,
+                        recovery_token,
+                        "generate_persisted_task",
+                    )
+                else:
+                    st.warning("Excel 当前仅在本次会话中可下载，尚未完成跨会话安全保存。")
+                    if persist_error:
+                        st.caption(f"保存失败原因：{persist_error}")
+                    if st.button("重试安全保存", key="retry_generate_persist"):
+                        _persist_generate_export_files()
+                        st.rerun()
 
                 excluded_count = result.get(
                     "rag",

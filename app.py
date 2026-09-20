@@ -8,6 +8,7 @@ from pages.generate_page import render_generate_page
 from pages.home_page import render_home_page
 from pages.update_page import render_update_page
 from ui.components import render_footer
+from ui.task_recovery import render_recovery_sidebar
 from ui.styles import load_global_styles
 
 
@@ -38,6 +39,16 @@ def initialize_session_state() -> None:
         "update_review_completed": False,
         "update_merge_result": None,
         "update_export_files": {},
+        "generate_persisted_task": None,
+        "generate_recovery_token": "",
+        "generate_persist_error": "",
+        "update_persisted_task": None,
+        "update_recovery_token": "",
+        "update_persist_error": "",
+        "recovered_task": None,
+        "recovered_export_files": {},
+        "recovered_token": "",
+        "recovered_error": "",
     }
 
     for key, value in defaults.items():
@@ -68,6 +79,7 @@ def render_navigation() -> None:
     )
 
     st.sidebar.info("请勿在未经授权的公共云环境中上传客户敏感资料、未公开资料或含个人信息的数据。")
+    render_recovery_sidebar()
 
 
 def render_current_page() -> None:

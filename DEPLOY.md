@@ -41,9 +41,32 @@ DEEPSEEK_MODEL = "deepseek-v4-flash"
 QWEN_API_KEY = "your-qwen-api-key"
 QWEN_BASE_URL = "your-qwen-openai-compatible-base-url"
 VISION_MODEL = "qwen-vl-plus"
+
+# TASK14 local recovery settings.
+# Local filesystem storage is suitable for development only and is not
+# restart-safe on Streamlit Cloud.
+TASK_STORE_RETENTION_DAYS = "7"
+TASK_STORE_LOCAL_DIR = "output/task_store"
 ```
 
 Local development can use `.env` with the same names. `.env` is ignored by Git.
+
+## 3.1 Excel Recovery Storage
+
+TASK14 adds recovery for completed Excel outputs. The development backend stores
+files under `output/task_store/`, which is ignored by Git.
+
+For Streamlit Cloud production recovery, configure a private object store before
+claiming restart-safe behavior:
+
+- Use a private bucket, not a public bucket.
+- Store both task manifests and Excel files outside Streamlit Cloud local disk.
+- Keep object-store credentials in Streamlit Secrets only.
+- Set a retention policy, for example 7 days, using bucket lifecycle rules when available.
+- Do not store uploaded source files, original images, Material, Facts, RAG, or QC reports in long-term recovery storage unless a separate privacy review approves it.
+
+The current local backend proves the Generate/Update integration and recovery
+flow, but it does not survive Streamlit Cloud container replacement or redeploy.
 
 ## 4. Update Deployment
 

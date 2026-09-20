@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 from io import StringIO
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -28,6 +29,7 @@ from review.relation_decisions import (
 )
 from review.relation_grouper import group_review_required
 from review.relation_models import RelationDecision, RelationDecisionType, RelationGroup, RelationGroupingResult, RelationType
+from storage.task_store import TaskStoreError, persist_excel_files
 from ui.components import (
     render_file_card,
     render_metric_cards,
@@ -35,6 +37,7 @@ from ui.components import (
     render_section_title,
     render_step_navigation,
 )
+from ui.task_recovery import render_persisted_task_notice
 
 
 HISTORY_TYPES = ["xlsx", "xls", "docx"]
@@ -49,6 +52,9 @@ def _reset_update_review_state() -> None:
     st.session_state.update_merge_result = None
     st.session_state.update_dedup_result = None
     st.session_state.update_export_files = {}
+    st.session_state.update_persisted_task = None
+    st.session_state.update_recovery_token = ""
+    st.session_state.update_persist_error = ""
 
 
 def _reset_update_diff_state() -> None:
@@ -1028,6 +1034,7 @@ def _render_review_center(result: DiffRunResult) -> None:
             st.error("最终知识为空，已停止导出。")
         else:
             st.session_state.update_export_files = _build_update_export_files(dedup_result.final_items)
+            _persist_update_export_files()
 
 
 def _knowledge_items_to_rag_data(items: list[KnowledgeItem]) -> dict:
@@ -1087,6 +1094,30 @@ def _build_update_export_files(items: list[KnowledgeItem]) -> dict:
                 "data": file_path.read_bytes(),
             }
         return export_files
+
+
+def _persist_update_export_files() -> None:
+    export_files = st.session_state.get("update_export_files", {})
+    if not export_files:
+        st.session_state.update_persist_error = "没有可保存的 Excel 文件。"
+        return
+
+    task = st.session_state.get("update_persisted_task") or {}
+    try:
+        persisted_task, token = persist_excel_files(
+            mode="update",
+            excel_files=export_files,
+            app_version=os.getenv("AUTORAG_APP_VERSION", ""),
+            recovery_token=st.session_state.get("update_recovery_token") or None,
+            existing_task_id=task.get("task_id") if isinstance(task, dict) else None,
+        )
+    except TaskStoreError as exc:
+        st.session_state.update_persist_error = str(exc)
+        return
+
+    st.session_state.update_persisted_task = persisted_task.to_public_dict()
+    st.session_state.update_recovery_token = token
+    st.session_state.update_persist_error = ""
 
 
 def _render_update_export(merge_result: MergeResult | None) -> None:
@@ -1152,6 +1183,23 @@ def _render_update_export(merge_result: MergeResult | None) -> None:
     if not export_files:
         st.warning("下载文件尚未生成，请重新点击“生成新版知识库”。")
         return
+
+    persisted_task = st.session_state.get("update_persisted_task")
+    recovery_token = st.session_state.get("update_recovery_token", "")
+    persist_error = st.session_state.get("update_persist_error", "")
+    if persisted_task and recovery_token:
+        render_persisted_task_notice(
+            persisted_task,
+            recovery_token,
+            "update_persisted_task",
+        )
+    else:
+        st.warning("Excel 当前仅在本次会话中可下载，尚未完成跨会话安全保存。")
+        if persist_error:
+            st.caption(f"保存失败原因：{persist_error}")
+        if st.button("重试安全保存", key="retry_update_persist"):
+            _persist_update_export_files()
+            st.rerun()
 
     static_file = export_files.get("static")
     dynamic_file = export_files.get("dynamic")
@@ -1338,6 +1386,7 @@ def render_update_page() -> None:
             st.session_state.update_dedup_result = dedup_result
             st.session_state.update_review_completed = True
             st.session_state.update_export_files = _build_update_export_files(dedup_result.final_items)
+            _persist_update_export_files()
             st.session_state.update_stage = "merged"
     elif not can_diff:
         st.caption("恢复历史知识并生成新增知识后，可以开始差异分析。")

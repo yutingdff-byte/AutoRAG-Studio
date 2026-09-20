@@ -1,5 +1,37 @@
 # AutoRAG-Studio Changelog
 
+## TASK14 - Excel Persistence and Recovery MVP
+
+Date: 2026-09-20
+
+Status: Local implementation completed; Cloud durable storage pending external object-store configuration
+
+### Added
+
+- Added a unified persisted task store for final Generate and Update Excel files.
+- Added random recovery tokens for cross-session and cross-browser Excel recovery.
+- Added same-browser auto-recovery bootstrap using minimal browser-side recovery token storage.
+- Added a sidebar recovery entry for manual recovery-code based downloads.
+- Added retry-safe persistence for already generated Excel files without rerunning Parser, Facts, RAG, QC, or Update merge logic.
+
+### Changed
+
+- Generate still writes run artifacts to `output/<run_id>/`, but final Excel downloads are also registered with the persisted task store.
+- Update can still generate Excel through a temporary directory, but final Excel bytes are persisted before the temporary directory is removed.
+
+### Security
+
+- Recovery uses an unguessable token; public task IDs alone do not authorize downloads.
+- Recovery token hashes, not plaintext tokens, are stored in task manifests.
+- No original uploaded customer files, images, material text, Facts JSON, RAG JSON, or QC reports are added to long-term recovery storage by this MVP.
+
+### Known Limits
+
+- The default backend is local filesystem storage under `output/task_store/`, intended for development and local validation.
+- Streamlit Cloud restart-safe recovery requires configuring a real private object-store backend in a follow-up deployment step.
+- This MVP does not support browser-close continuation for tasks that are still running.
+- If the user loses the recovery code and clears browser local data, there is no account-based lookup in this MVP.
+
 ## ZIP Image Import MVP - Small ZIP Release Candidate
 
 Date: 2026-09-19
